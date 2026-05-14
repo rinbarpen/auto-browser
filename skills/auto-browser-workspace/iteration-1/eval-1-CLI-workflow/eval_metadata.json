@@ -1,0 +1,32 @@
+{
+  "eval_id": 1,
+  "eval_name": "CLI-workflow",
+  "prompt": "I need to automate logging into a website and checking my dashboard. I have the auto-browser tool installed in my project at /home/rczx/workspace/rinbarpen/projects/auto-browser. Can you help me set up and run a browser automation task that navigates to a login page, fills in credentials, and checks the dashboard? I want to use the CLI tool directly.",
+  "assertions": [
+    {
+      "name": "uses-auto-browser-command",
+      "description": "The answer uses the auto-browser CLI command (run/submit/approve) rather than raw agent-browser commands or generic Playwright",
+      "expected": "At least one auto-browser CLI command reference"
+    },
+    {
+      "name": "mentions-model-config",
+      "description": "The answer explains the need for planner and executor models",
+      "expected": "References both --planner-model and --executor-model or model tiers"
+    },
+    {
+      "name": "mentions-credential-store",
+      "description": "The answer mentions the credential store (~/.auto-browser/credentials.json) as the way to provide credentials",
+      "expected": "References credentials.json or --credentials-path"
+    },
+    {
+      "name": "explains-task-lifecycle",
+      "description": "The answer explains the task lifecycle (submit → draft → approve → running → complete)",
+      "expected": "Mentions at least two of: draft, approve, running, complete, handoff"
+    },
+    {
+      "name": "correct-captcha-strategy",
+      "description": "The answer recommends cookie persistence as the primary strategy for CAPTCHA handling",
+      "expected": "Recommends --cookies-path or cookie persistence or handoff for CAPTCHA handling"
+    }
+  ]
+}

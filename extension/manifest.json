@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Auto Browser Sidepanel",
+  "version": "0.1.0",
+  "description": "Chat-style sidepanel for active Auto Browser tasks.",
+  "permissions": ["sidePanel", "storage", "tabs", "activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1:4317/*", "http://localhost:4317/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open Auto Browser"
+  }
+}

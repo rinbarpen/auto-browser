@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hxcy 资源库</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #eee; }
+    h1 { margin-top: 0; }
+    .toolbar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    .btn-primary { background: #4361ee; color: white; }
+    .btn-primary:hover { background: #3a56d4; }
+    .btn-secondary { background: #4a5568; color: white; }
+    select { padding: 8px 12px; border-radius: 6px; background: #2d3748; color: #eee; border: 1px solid #4a5568; }
+    .list { display: flex; flex-direction: column; gap: 12px; }
+    .card { background: #16213e; border-radius: 8px; padding: 16px; border: 1px solid #2d3748; }
+    .card h3 { margin: 0 0 8px; font-size: 16px; }
+    .card .meta { font-size: 12px; color: #a0aec0; margin-bottom: 8px; }
+    .card .links { display: flex; flex-direction: column; gap: 6px; }
+    .card a { color: #63b3ed; text-decoration: none; }
+    .card a:hover { text-decoration: underline; }
+    .card .code { font-family: monospace; background: #2d3748; padding: 4px 8px; border-radius: 4px; font-size: 13px; }
+    .card .actions { margin-top: 12px; display: flex; gap: 8px; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 100; }
+    .modal.show { display: flex; }
+    .modal-content { background: #16213e; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal-close { float: right; cursor: pointer; font-size: 24px; }
+    .status-panel { display: none; background: #16213e; border-radius: 8px; padding: 16px; margin-bottom: 20px; border: 1px solid #2d3748; }
+    .status-panel.show { display: block; }
+    .status-panel h3 { margin: 0 0 12px; font-size: 14px; color: #a0aec0; }
+    .status-phase { font-weight: bold; margin-bottom: 8px; }
+    .status-phase.running { color: #63b3ed; }
+    .status-phase.done { color: #68d391; }
+    .status-phase.error { color: #fc8181; }
+    .status-url { font-size: 12px; color: #a0aec0; word-break: break-all; margin-bottom: 8px; }
+    .status-stats { font-size: 13px; margin-bottom: 8px; }
+    .status-logs { max-height: 180px; overflow-y: auto; font-family: monospace; font-size: 12px; background: #0f0f1a; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+    .status-logs .log-line { margin: 2px 0; color: #a0aec0; }
+    .status-screenshot { max-width: 100%; max-height: 240px; border-radius: 6px; border: 1px solid #2d3748; }
+    .empty-hint { color: #a0aec0; padding: 24px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>hxcy 资源库</h1>
+  <div class="toolbar">
+    <button class="btn btn-primary" id="crawlBtn">采集资源</button>
+    <select id="categoryFilter">
+      <option value="">全部栏目</option>
+    </select>
+    <button class="btn btn-secondary" id="refreshBtn">刷新列表</button>
+  </div>
+  <div id="statusPanel" class="status-panel">
+    <h3>采集状态</h3>
+    <div id="statusPhase" class="status-phase"></div>
+    <div id="statusUrl" class="status-url"></div>
+    <div id="statusStats" class="status-stats"></div>
+    <div id="statusLogs" class="status-logs"></div>
+    <img id="statusScreenshot" class="status-screenshot" alt="当前页面截图" style="display:none">
+  </div>
+
+  <div id="list" class="list"></div>
+
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close" id="modalClose">&times;</span>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    const listEl = document.getElementById('list');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const modal = document.getElementById('modal');
+    const modalBody = document.getElementById('modalBody');
+    const modalClose = document.getElementById('modalClose');
+
+    async function loadResources() {
+      const cat = categoryFilter.value;
+      const url = cat ? `/api/resources?category=${encodeURIComponent(cat)}&limit=100` : '/api/resources?limit=100';
+      const res = await fetch(url);
+      const { resources } = await res.json();
+      renderList(resources);
+      if (categoryFilter.options.length <= 1) {
+        const cats = [...new Set(resources.map(r => r.category))].sort();
+        cats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c;
+          opt.textContent = c;
+          categoryFilter.appendChild(opt);
+        });
+      }
+    }
+
+    function renderList(resources) {
+      if (resources.length === 0) {
+        listEl.innerHTML = '<p class="empty-hint">暂无资源。请先运行采集或检查登录/网络配置。</p>';
+        return;
+      }
+      listEl.innerHTML = resources.map(r => `
+        <div class="card" data-id="${r.id}">
+          <h3>${escapeHtml(r.title)}</h3>
+          <div class="meta">${r.category} · ${new Date(r.createdAt).toLocaleString()}</div>
+          <div class="links">
+            ${r.links.map(l => `
+              <div>
+                <a href="${l.url}" target="_blank">${escapeHtml(l.url)}</a>
+                ${l.extractCode ? `<span class="code">提取码: ${escapeHtml(l.extractCode)}</span>` : ''}
+                ${l.unzipPassword ? `<span class="code">解压码: ${escapeHtml(l.unzipPassword)}</span>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary" onclick="viewDetail('${r.id}')">详情</button>
+            <button class="btn btn-secondary" onclick="downloadLocal('${r.id}')">保存到本地</button>
+            <button class="btn btn-secondary" onclick="saveToBaidu('${r.id}')">保存到百度网盘</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    async function viewDetail(id) {
+      const res = await fetch(`/api/resources/${id}`);
+      const r = await res.json();
+      modalBody.innerHTML = `
+        <h3>${escapeHtml(r.title)}</h3>
+        <p><strong>来源:</strong> <a href="${r.sourceUrl}" target="_blank">${escapeHtml(r.sourceUrl)}</a></p>
+        <p><strong>栏目:</strong> ${escapeHtml(r.category)}</p>
+        <p><strong>上下文:</strong> ${escapeHtml(r.context || '-')}</p>
+        <h4>链接</h4>
+        ${r.links.map(l => `
+          <p><a href="${l.url}" target="_blank">${escapeHtml(l.url)}</a></p>
+          <p>提取码: ${escapeHtml(l.extractCode || '-')} | 解压码: ${escapeHtml(l.unzipPassword || '-')}</p>
+        `).join('')}
+      `;
+      modal.classList.add('show');
+    }
+
+    async function downloadLocal(id) {
+      const res = await fetch(`/api/download/local`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId: id }) });
+      const data = await res.json();
+      alert(data.message || (res.ok ? '已加入下载队列' : data.error || '失败'));
+    }
+
+    async function saveToBaidu(id) {
+      const res = await fetch(`/api/download/baidu`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId: id }) });
+      const data = await res.json();
+      alert(data.message || (res.ok ? '已加入保存队列' : data.error || '失败'));
+    }
+
+    const phaseLabels = { idle: '空闲', launching: '启动浏览器', logging_in: '登录中', navigating: '导航中', extracting: '提取资源', done: '已完成', error: '错误' };
+    let pollTimer = null;
+
+    function renderStatus(s) {
+      const panel = document.getElementById('statusPanel');
+      const phaseEl = document.getElementById('statusPhase');
+      const urlEl = document.getElementById('statusUrl');
+      const statsEl = document.getElementById('statusStats');
+      const logsEl = document.getElementById('statusLogs');
+      const screenshotEl = document.getElementById('statusScreenshot');
+
+      const isActive = s.phase !== 'idle' && s.phase !== 'done' && s.phase !== 'error';
+      panel.classList.toggle('show', isActive || s.logs.length > 0);
+
+      phaseEl.textContent = phaseLabels[s.phase] || s.phase;
+      phaseEl.className = 'status-phase ' + (s.phase === 'error' ? 'error' : s.phase === 'done' ? 'done' : 'running');
+
+      urlEl.textContent = s.currentUrl ? '当前: ' + s.currentUrl : '';
+      urlEl.style.display = s.currentUrl ? '' : 'none';
+
+      statsEl.textContent = s.totalUrls ? `进度: ${s.currentUrlIndex || 0}/${s.totalUrls} | 新增: ${s.collected} | 跳过: ${s.skipped}` : `新增: ${s.collected} | 跳过: ${s.skipped}`;
+      if (s.error) statsEl.textContent += ' | ' + s.error;
+
+      logsEl.innerHTML = s.logs.slice(-50).map(l => `<div class="log-line">[${l.timestamp.slice(11,19)}] ${escapeHtml(l.message)}</div>`).join('');
+
+      if (s.screenshot) {
+        screenshotEl.src = 'data:image/png;base64,' + s.screenshot;
+        screenshotEl.style.display = 'block';
+      } else {
+        screenshotEl.style.display = 'none';
+      }
+    }
+
+    async function pollStatus() {
+      const res = await fetch('/api/crawl/status');
+      const s = await res.json();
+      renderStatus(s);
+      if (s.phase !== 'idle' && s.phase !== 'done' && s.phase !== 'error') {
+        pollTimer = setTimeout(pollStatus, 800);
+      } else {
+        pollTimer = null;
+        document.getElementById('crawlBtn').disabled = false;
+        if (s.phase === 'done' || s.phase === 'error') loadResources();
+      }
+    }
+
+    document.getElementById('crawlBtn').onclick = async () => {
+      document.getElementById('crawlBtn').disabled = true;
+      try {
+        const res = await fetch('/api/crawl', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 409) pollStatus();
+          else { alert(data.error || '失败'); document.getElementById('crawlBtn').disabled = false; }
+          return;
+        }
+        pollStatus();
+      } catch (e) {
+        alert('采集失败: ' + e.message);
+        document.getElementById('crawlBtn').disabled = false;
+      }
+    };
+
+    document.getElementById('refreshBtn').onclick = loadResources;
+    modalClose.onclick = () => modal.classList.remove('show');
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('show'); };
+
+    loadResources();
+  </script>
+</body>
+</html>

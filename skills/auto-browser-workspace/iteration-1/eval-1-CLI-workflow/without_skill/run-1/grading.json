@@ -1,0 +1,49 @@
+{
+  "expectations": [
+    {
+      "text": "uses-auto-browser-command",
+      "passed": true,
+      "evidence": "The answer uses auto-browser CLI commands exclusively (run, submit, approve, serve, state, resume) throughout. Example: 'auto-browser run --goal \"navigate to https://example.com/login, log in with saved credentials, and check the dashboard\"' (answer.md line 143). No raw agent-browser or Playwright commands are used."
+    },
+    {
+      "text": "mentions-model-config",
+      "passed": true,
+      "evidence": "The answer explicitly explains the dual-LLM architecture: 'Planner Model (--planner-model): Drafts the execution plan from a natural-language goal' and 'Executor Model (--executor-model): Makes per-step decisions (click ref, fill field, scroll, etc.)' (answer.md lines 9-10). It also covers model tiers (max, standard, economy, free) and shows configuration via CLI flags, environment variables, and --model-tier."
+    },
+    {
+      "text": "mentions-credential-store",
+      "passed": true,
+      "evidence": "The answer explicitly instructs creating ~/.auto-browser/credentials.json: 'Create or edit ~/.auto-browser/credentials.json' with a JSON example showing sites/username/password structure, hostname matching rules, and chmod 600 permissions (answer.md lines 68-89). Commands.md also provides the full shell command to create this file (commands.md lines 5-23)."
+    },
+    {
+      "text": "explains-task-lifecycle",
+      "passed": true,
+      "evidence": "The answer explicitly shows the lifecycle: 'Submit goal --> draft (plan drafted) --> ready (approved) --> running (execute loop) --> completed | handoff | failed' (answer.md lines 16-18). It also distinguishes between the one-shot 'run' command (submit + approve + execute in one step) and the two-step 'submit + approve' workflow (answer.md lines 139-162), plus describes the 20-iteration observe-decide-act execution loop."
+    },
+    {
+      "text": "correct-captcha-strategy",
+      "passed": true,
+      "evidence": "The answer has a dedicated 'Step 4: Cookie Persistence (Stay Logged In)' section (answer.md lines 200-214) that recommends logging in once, saving cookies via --cookies-path, and reusing them in subsequent tasks to avoid re-logging in — which is the primary way to avoid CAPTCHA challenges that appear on login pages. While not explicitly labeled 'CAPTCHA strategy,' cookie persistence is presented as the recommended workflow pattern before the separate Cloudflare/CAPTCHA section (lines 224-229) which describes the executor's built-in passive handling as a secondary mechanism."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "output_chars": 18050
+  },
+  "timing": {
+    "executor_duration_seconds": 312.5,
+    "total_duration_seconds": 312.5
+  },
+  "eval_feedback": {
+    "suggestions": [
+      "Consider explicitly connecting cookie persistence to CAPTCHA avoidance — the relationship is implicit but could be made clearer by stating 'using cookies avoids re-authentication and the CAPTCHAs that come with it.'",
+      "The credential store setup could include a note about security best practices like never committing the credentials file to version control."
+    ],
+    "overall": "All five expectations are met. The answer provides a comprehensive, well-structured guide covering CLI usage, model configuration, credential management, the full task lifecycle, and cookie persistence as the recommended approach for staying authenticated across sessions. It uses the auto-browser CLI correctly throughout and walks through real command examples for each step of the workflow."
+  }
+}

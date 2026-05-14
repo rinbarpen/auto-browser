@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auto Browser Desktop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="eyebrow">Auto Browser</div>
+          <h1>Operator chat for browser work</h1>
+          <p>Chat-first task planning with a live preview docked beside the workspace and instant human handoff.</p>
+        </div>
+
+        <section class="sidebar-section compact">
+          <div class="section-label">Browser runtime</div>
+          <label>
+            <span>Executable path</span>
+            <input id="executablePath" placeholder="Detecting browser executable..." />
+          </label>
+          <label>
+            <span>Profile path</span>
+            <input id="profilePath" value="/tmp/auto-browser-profile" />
+          </label>
+          <p class="runtime-defaults-message" id="runtimeDefaultsMessage">
+            Detecting browser runtime defaults...
+          </p>
+          <div class="toggle-row">
+            <label><input id="extensionEnabled" type="checkbox" checked /> Extension</label>
+            <label><input id="previewEnabled" type="checkbox" checked /> Preview</label>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main-panel">
+        <header class="chat-header">
+          <div>
+            <div class="eyebrow">Managed workspace</div>
+            <h2 id="conversationTitle">Auto-managed conversation</h2>
+          </div>
+          <div class="header-actions">
+            <button class="ghost-button" id="openPreviewButton">Refresh preview</button>
+            <div class="status-pill" id="connectionStatus">Disconnected</div>
+          </div>
+        </header>
+
+        <section id="messageThread" class="message-thread"></section>
+
+        <section class="task-rail">
+          <div class="task-rail-header">
+            <div>
+              <div class="section-label">Task draft</div>
+              <h3 id="taskTitle">No draft yet</h3>
+            </div>
+            <div class="task-actions">
+              <button class="secondary-button" id="handoffButton" disabled>Enter handoff</button>
+              <button class="secondary-button" id="resumeButton" disabled>Resume</button>
+              <button class="primary-action" id="approveButton" disabled>Approve and run</button>
+            </div>
+          </div>
+          <p id="taskSummary" class="task-summary">Send a goal to generate a task draft.</p>
+          <ol id="taskSteps" class="task-steps"></ol>
+        </section>
+
+        <footer class="composer">
+          <textarea
+            id="promptInput"
+            placeholder="Describe what the browser should do. The assistant will draft steps before executing anything."
+            rows="4"
+          ></textarea>
+          <div class="composer-actions">
+            <p class="composer-note">Drag the divider to resize the browser preview during manual operation.</p>
+            <button class="primary-action" id="sendButton">Generate draft</button>
+          </div>
+        </footer>
+      </main>
+
+      <div
+        class="preview-resize-handle"
+        id="previewResizeHandle"
+        role="separator"
+        aria-label="Resize chat and browser preview panels"
+        aria-orientation="vertical"
+      ></div>
+
+      <aside class="preview-panel" id="previewPanel" aria-label="Live preview panel">
+        <div class="preview-panel-header">
+          <div>
+            <div class="section-label">Live preview</div>
+            <h3>Browser surface</h3>
+          </div>
+        </div>
+        <iframe
+          id="previewFrame"
+          class="preview-frame"
+          title="Live browser preview"
+          src="./preview.html?embedded=1"
+        ></iframe>
+      </aside>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "auto-browser-product",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "auto-browser": "./dist/auto-browser/cli.js",
+    "auto-browser-mcp": "./dist/auto-browser/mcp-server.js"
+  },
+  "scripts": {
+    "build": "./node_modules/.bin/tsc -p tsconfig.json --typeRoots ./node_modules/@types",
+    "dev:control-service": "./agent-browser/node_modules/.bin/tsx src/auto-browser/server.ts",
+    "dev:mcp-server": "./agent-browser/node_modules/.bin/tsx src/auto-browser/mcp-server.ts",
+    "dev:desktop-preview": "node scripts/serve-app-shell.mjs desktop",
+    "cookies": "./agent-browser/node_modules/.bin/tsx src/auto-browser/cookie-manager.ts",
+    "test": "node scripts/run-vitest.mjs run --config vitest.config.mjs",
+    "typecheck": "./node_modules/.bin/tsc -p tsconfig.json --noEmit --typeRoots ./node_modules/@types"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "agent-browser": "file:./agent-browser",
+    "ink": "^5.2.0",
+    "playwright": "^1.59.1",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0"
+  }
+}

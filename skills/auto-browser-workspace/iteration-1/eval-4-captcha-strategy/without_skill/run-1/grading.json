@@ -1,0 +1,47 @@
+{
+  "expectations": [
+    {
+      "text": "recommends-cookie-reuse-first",
+      "passed": true,
+      "evidence": "answer.md line 33-34 explicitly states priority: 'Cookie 复用 > Handoff 半自动 > 全自动尝试 > 放弃并切换方案'. Line 38 declares 'Layer 1（最佳方案）：Cookie 持久化复用 — 全自动，零摩擦'. commands.md contains numerous --cookies-path usage examples throughout sections 1.2, 2.1, 2.2, 2.3, and 4.1."
+    },
+    {
+      "text": "describes-cookie-workflow",
+      "passed": true,
+      "evidence": "answer.md lines 42-55 describe the two-phase process: '第一次（手动辅助）：--headed 启动有头浏览器 → AI 自动填写账号密码 → 遇到滑块/短信 → handoff → 手动完成 → cookies 自动保存' followed by '后续（全自动）：--cookies-path 加载已保存的 cookies → 直接进入消息页面 → 全自动收集消息'. commands.md section 1.2 shows initial headed login commands with --cookies-path, section 2 shows subsequent automated runs, section 2.3 explicitly states headless mode only when cookies confirmed valid."
+    },
+    {
+      "text": "mentions-handoff-fallback",
+      "passed": true,
+      "evidence": "answer.md line 63: 'Layer 2（回退方案）：Handoff 半自动模式 — 仅在 cookie 过期时使用'. Lines 66-77 describe handoff scenarios and workflow. Lines 78-83 list built-in handoff trigger conditions. commands.md lines 63-68 and 178-180 reference the `auto-browser resume --task-id <task-id>` command."
+    },
+    {
+      "text": "explains-handoff-resume-flow",
+      "passed": true,
+      "evidence": "answer.md lines 71-77 describe the complete sequence: '1. AI 自动导航到登录页; 2. AI 从 credentials.json 自动填入用户名密码; 3. AI 检测到滑块/短信/二次验证 → 自动触发 handoff; 4. 你手动完成验证; 5. resume 命令让 AI 继续执行后续任务'. Lines 45-46 repeat the flow. commands.md lines 63-68 and 176-181 provide explicit handoff → human solve → resume command sequences."
+    },
+    {
+      "text": "mentions-credential-store",
+      "passed": true,
+      "evidence": "answer.md line 15 mentions '从 credentials.json 自动填入用户名密码' in the capability table. Line 73: 'AI 从 credentials.json 自动填入用户名密码'. commands.md lines 7-28 show complete ~/.auto-browser/credentials.json setup with taobao.com and shopee.tw entries. Lines 37-60 use --credentials-path ~/.auto-browser/credentials.json in run commands."
+    },
+    {
+      "text": "prioritizes-correctly",
+      "passed": true,
+      "evidence": "answer.md line 33-34 establishes the explicit priority order: 'Cookie 复用 > Handoff 半自动 > 全自动尝试 > 放弃并切换方案'. This is followed through with Layer 1 (best, cookie reuse), Layer 2 (fallback, handoff for expired cookies), Layer 3 (last resort, fully automatic only for simple cases). Lines 226-233 provide a ranking table quantifying reliability per approach. Line 237 explicitly warns: '不要指望全自动解决淘宝/虾皮的验证码'."
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "total_duration_seconds": 267.4
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All 6 expectations are met with strong, unambiguous evidence. The answer correctly prioritizes cookie reuse as the primary strategy, provides a detailed two-phase cookie workflow, describes handoff as a fallback mechanism with full resume flow, references the credential store, and establishes the correct priority ordering among the three approaches. The commands.md reinforces every point with concrete, runnable examples."
+  }
+}

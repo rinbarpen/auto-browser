@@ -1,0 +1,22 @@
+{
+  "max": {
+    "planner": "gpt-5.5",
+    "executor": "gpt-5.5",
+    "vision": "gpt-5.5"
+  },
+  "standard": {
+    "planner": "gpt-5.5-nano",
+    "executor": "gpt-4o",
+    "vision": "gpt-4o"
+  },
+  "economy": {
+    "planner": "deepseek-v4-pro",
+    "executor": "deepseek-v4-flash",
+    "vision": "gpt-4o"
+  },
+  "free": {
+    "planner": "openrouter:free",
+    "executor": "openrouter:free",
+    "vision": "openrouter:free"
+  }
+}

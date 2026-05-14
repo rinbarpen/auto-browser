@@ -1,0 +1,41 @@
+{
+  "expectations": [
+    {
+      "text": "The answer references correct API endpoints with paths",
+      "passed": true,
+      "evidence": "answer.md clearly references all required endpoints: POST /api/conversations (line 9, 104-119), POST /api/conversations/:id/messages (line 10, 138-162), POST /api/tasks/:id/approve (line 12, 209-239), POST /api/tasks/:id/run (line 13, 241-262), and GET /api/events (line 41-54). examples.md reinforces all endpoints in helper functions and code examples throughout."
+    },
+    {
+      "text": "The answer demonstrates how to consume the SSE event stream",
+      "passed": true,
+      "evidence": "answer.md lines 402-427 show consuming GET /api/events via fetch() with a ReadableStream reader, splitting on double newlines, and parsing data: lines. examples.md lines 136-187 implement a complete connectSSE() async generator function using fetch + ReadableStream reader to yield parsed TaskEvent objects."
+    },
+    {
+      "text": "The answer shows the JSON body format for API requests",
+      "passed": true,
+      "evidence": "answer.md lines 143-161 show the full JSON body for POST /api/conversations/:id/messages with content, plannerModel, modelTier, context, and browserConfig (with all nested fields). Lines 214-219 show the body for POST /api/tasks/:id/approve with executorModel and modelTier. examples.md helper functions (lines 57-75, 86-94, 103-113) build these bodies programmatically with all expected fields."
+    },
+    {
+      "text": "The answer explains the full programmatic workflow from conversation creation to task completion",
+      "passed": true,
+      "evidence": "answer.md explicitly documents both the blocking workflow (lines 380-388: create conversation -> submit goal -> approve) and the non-blocking SSE workflow (lines 391-401: create conversation -> submit goal -> open SSE -> run task -> stream events -> close on completion). examples.md provides 5 runnable examples (examples 1-5) that fully implement both workflows end-to-end with error handling and cancellation support."
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "output_chars": 33811
+  },
+  "timing": {
+    "executor_duration_seconds": 384.4,
+    "total_duration_seconds": 384.4
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All expectations fully satisfied. The answer.md provides thorough API reference documentation with every endpoint, request body format, SSE stream format, event type reference, and explicit workflow descriptions. The examples.md provides production-ready Node.js code examples covering both blocking and non-blocking paths, cancellation, custom browser config, polling fallback, and error handling. No issues found."
+  }
+}

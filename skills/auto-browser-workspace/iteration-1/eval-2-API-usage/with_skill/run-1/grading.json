@@ -1,0 +1,41 @@
+{
+  "expectations": [
+    {
+      "text": "uses-correct-api-endpoints",
+      "passed": true,
+      "evidence": "answer.md explicitly lists all required endpoints in the API Endpoints table (lines 24-30): POST /api/conversations, POST /api/conversations/:id/messages, POST /api/tasks/:id/approve, POST /api/tasks/:id/run, GET /api/events. Each endpoint is documented with full request/response shapes and used consistently across all four code examples in examples.md."
+    },
+    {
+      "text": "includes-sse-streaming",
+      "passed": true,
+      "evidence": "SSE streaming is demonstrated in three distinct ways: (1) answer.md lines 134-157 explain the SSE format, event structure, and all event types; (2) examples.md Example 1 (lines 40-59) shows curl -N for consuming the SSE stream; (3) examples.md Example 3 (lines 205-316) and Example 4 (lines 537-571) both show full fetch ReadableStream parsing with buffer management, line splitting on double-newline boundaries, and event dispatch by taskId."
+    },
+    {
+      "text": "shows-request-body-format",
+      "passed": true,
+      "evidence": "JSON body formats are shown for all key requests: answer.md lines 60-67 show the submit-goal body with content, plannerModel, browserConfig fields; lines 99-101 show the approve body with executorModel; lines 119-121 show the run body with executorModel. examples.md reinforces this across all examples with complete fetch calls including headers and JSON.stringify calls (e.g., Example 2 lines 80-90, Example 3 lines 170-175)."
+    },
+    {
+      "text": "explains-task-workflow",
+      "passed": true,
+      "evidence": "The full programmatic workflow is explained in answer.md: lines 7-20 describe the three-phase lifecycle (Submit -> Approve -> Execute), lines 22-35 map each phase to its API endpoint, and lines 37-130 walk through each step in order (Create Conversation -> Submit Goal -> Approve/Run -> SSE Events). All four code examples in examples.md follow this exact sequence: createConversation() -> submitGoal() -> approveAndWait()/startTask() + streamEvents()."
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "output_chars": 26197
+  },
+  "timing": {
+    "executor_duration_seconds": 321.7,
+    "total_duration_seconds": 321.7
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All four expectations are fully met. The outputs provide comprehensive API documentation (answer.md) with clear request/response shapes, endpoint tables, and lifecycle explanation, plus five working code examples (examples.md) covering curl/bash, blocking Node.js fetch, non-blocking Node.js fetch with SSE ReadableStream parsing, TypeScript with full type definitions and a client class, and browserConfig variations. The SSE streaming is demonstrated with both curl -N and full fetch ReadableStream parsing including buffer management and event dispatch. The workflow sequence (create conversation -> submit goal -> approve/run -> stream events) is explained conceptually and implemented consistently across all examples."
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "expectations": [
+    {
+      "text": "mentions-extension-setup: The answer explains how to load the extension in Chrome. Expect: mentions chrome://extensions, developer mode, load unpacked, extension/ directory",
+      "passed": true,
+      "evidence": "answer.md Step 2 (lines 69-78): 'Open Chrome and navigate to chrome://extensions', 'Enable Developer mode', 'Click Load unpacked', 'Select the extension/ directory'"
+    },
+    {
+      "text": "mentions-sidepanel: The answer mentions the sidepanel as the operator console. Expect: references sidepanel or sidepanel.html",
+      "passed": true,
+      "evidence": "answer.md Step 3 (lines 98-111) describes the sidepanel as a chat-style operator console; line 87 lists sidepanel.html in the extension file table; line 87 calls it 'Chat-style operator console UI'"
+    },
+    {
+      "text": "explains-extension-execution-flow: The answer explains how extension execution differs from service execution. Expect: mentions observe-decide-act cycle, POST /api/tasks/:id/decide, no system mouse, DOM-only actions",
+      "passed": true,
+      "evidence": "answer.md line 85: 'background.js — Service worker that runs the observe-decide-act loop for extension tasks'; line 122: 'sends to POST /api/tasks/:id/decide'; lines 189-191 contrast extension mode (no Playwright, DOM overlays, content-script actions) vs managed mode (system mouse, CDP, screenshot observations)"
+    },
+    {
+      "text": "explains-credential-file-format: The answer shows the credentials.json format. Expect: Shows the JSON structure with sites, username, password fields",
+      "passed": true,
+      "evidence": "answer.md lines 19-35 shows full JSON template with 'sites' object containing domain keys with 'username' and 'password' fields (example.com, github.com, taobao.com); config.md lines 7-31 repeats with more examples"
+    },
+    {
+      "text": "mentions-site-permissions: The answer mentions that the extension requests runtime site permissions. Expect: mentions granting site access or permissions per origin",
+      "passed": true,
+      "evidence": "answer.md line 94: 'optional_host_permissions: http://*/* and https://*/* (requested per-site as needed)'; line 109: 'Buttons for: send, refresh, grant site permissions...'; line 200: 'In the sidepanel, click the Grant Permission button'; config.md line 185: 'the extension requests it per-site when needed'"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "output_chars": 14974
+  },
+  "timing": {
+    "executor_duration_seconds": 206.5,
+    "total_duration_seconds": 206.5
+  },
+  "eval_feedback": {
+    "suggestions": [
+      "The answer could explicitly mention 'DOM-only actions' or 'no system mouse control' instead of relying on the reader to infer from the managed-mode contrast, though the contrast makes it clear.",
+      "The credential file section in answer.md says credentials are used by the execution driver rather than the sidepanel directly -- this is accurate but slightly buried; a small diagram or flow summary could make it more prominent."
+    ],
+    "overall": "All five expectations are met. The answer thoroughly covers extension loading (chrome://extensions, developer mode, load unpacked), the sidepanel UI, the observe-decide-act loop with the /decide endpoint, the credentials.json format, and per-site permission grants. The config.md supplement reinforces the credential format and manifest details. Strong coverage across all expected topics."
+  }
+}

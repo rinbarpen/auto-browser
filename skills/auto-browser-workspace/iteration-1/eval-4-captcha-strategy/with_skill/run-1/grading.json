@@ -1,0 +1,47 @@
+{
+  "expectations": [
+    {
+      "text": "recommends-cookie-reuse-first",
+      "passed": true,
+      "evidence": "Answer clearly states cookie reuse as the top priority: '第一优先级：Cookie 复用（最佳方案 — 全自动、最快）'. The answer opens with '最可靠的方案是利用 cookie 持久化，绕过登录环节' and provides multiple --cookies-path usage examples. Commands.md includes concrete commands like 'auto-browser run --goal \"...\" --cookies-path ./taobao-cookies.json --headless'."
+    },
+    {
+      "text": "describes-cookie-workflow",
+      "passed": true,
+      "evidence": "Answer fully describes the two-phase process. Phase 1 — headed login: '首次登录（人工参与一次）' with diagram showing headed mode, AI navigation, auto-fill, manual CAPTCHA, cookie save to file. Phase 2 — subsequent automated runs: '后续任务（全自动，零人工）' with headless mode and cookie reuse. Specific commands in Commands.md show '--headed --cookies-path' for initial login and '--headless --cookies-path' for daily collection."
+    },
+    {
+      "text": "mentions-handoff-fallback",
+      "passed": true,
+      "evidence": "Handoff is presented as the second-priority fallback: '第二优先级：Handoff 模式（半自动回退方案）'. Answer states it is used '当 cookie 过期或需要重新登录时使用'. Commands.md references: '遇到验证码会触发 handoff。你手动在浏览器窗口中完成滑块/短信验证' and shows 'auto-browser resume --task-id <task-id>'."
+    },
+    {
+      "text": "explains-handoff-resume-flow",
+      "passed": true,
+      "evidence": "The complete handoff + resume sequence is described step by step: 'AI 导航到登录页面 → AI 从 credentials.json 读取并填充用户名/密码 → 遇到验证码 → AI 检测到 blocker → 自动触发 handoff → 你手动完成滑块/短信/点选验证码 → 执行 auto-browser resume 恢复任务 → AI 继续执行消息收集'. Commands.md provides the specific resume command: 'auto-browser resume --task-id <task-id> --planner-model deepseek-v4-pro'."
+    },
+    {
+      "text": "mentions-credential-store",
+      "passed": true,
+      "evidence": "Credential store is explicitly mentioned and configured. Answer states: '创建 ~/.auto-browser/credentials.json（文件权限 0600）' with the full JSON structure. It describes credential matching: '系统会根据域名自动匹配对应凭证（支持子域名 fallback）'. Commands.md shows the file creation command with 'chmod 0600 ~/.auto-browser/credentials.json' and uses '--credentials-path ~/.auto-browser/credentials.json' in commands."
+    },
+    {
+      "text": "prioritizes-correctly",
+      "passed": true,
+      "evidence": "Answer establishes a clear three-tier priority: '第一优先级：Cookie 复用（最佳方案）', '第二优先级：Handoff 模式（半自动回退方案）', '第三优先级：全自动（兜底方案）'. It explains when to use each: cookie reuse as the daily driver, handoff as the fallback for expired cookies/re-login, and fully automatic only for built-in supported CAPTCHA types. For Taobao/Shopee it explicitly states fully automatic is not viable: '对淘宝/虾皮不适用——它们的滑块属于阿里/腾讯系私有协议，自动绕过成功率极低且风险高'."
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "total_duration_seconds": 183.6
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All 6 expectations are met. The answer provides a comprehensive, well-structured strategy with clear three-tier prioritization (cookie reuse > handoff > fully automatic). It thoroughly covers the cookie persistence workflow with concrete --cookies-path commands, explains the full handoff resume flow step by step, and properly references the credential store with ~/.auto-browser/credentials.json. The commands.md file provides practical, copy-paste-ready commands for each phase."
+  }
+}

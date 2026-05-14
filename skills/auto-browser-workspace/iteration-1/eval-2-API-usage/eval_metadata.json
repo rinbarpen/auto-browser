@@ -1,0 +1,27 @@
+{
+  "eval_id": 2,
+  "eval_name": "API-usage",
+  "prompt": "I want to use the auto-browser HTTP API to programmatically create and execute browser tasks from my own Node.js script. Show me how to use the REST API to submit a goal, approve the task, and stream the events via SSE. The control service runs on port 4317.",
+  "assertions": [
+    {
+      "name": "uses-correct-api-endpoints",
+      "description": "The answer references correct API endpoints with paths",
+      "expected": "References at least: POST /api/conversations, POST /api/conversations/:id/messages, POST /api/tasks/:id/approve or /run, GET /api/events"
+    },
+    {
+      "name": "includes-sse-streaming",
+      "description": "The answer demonstrates how to consume the SSE event stream",
+      "expected": "Shows consuming GET /api/events via EventSource, curl -N, or fetch ReadableStream"
+    },
+    {
+      "name": "shows-request-body-format",
+      "description": "The answer shows the JSON body format for API requests",
+      "expected": "Shows JSON body with fields like content, browserConfig, plannerModel, executorModel"
+    },
+    {
+      "name": "explains-task-workflow",
+      "description": "The answer explains the full programmatic workflow from conversation creation to task completion",
+      "expected": "Shows the sequence: create conversation → submit goal → approve/run → stream events"
+    }
+  ]
+}

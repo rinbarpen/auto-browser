@@ -1,0 +1,11 @@
+{
+  "name": "auto-browser-desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "electron ./electron-main.mjs"
+  },
+  "devDependencies": {
+    "electron": "^35.3.0"
+  }
+}

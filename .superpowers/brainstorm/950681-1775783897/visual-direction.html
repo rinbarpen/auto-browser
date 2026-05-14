@@ -1,0 +1,114 @@
+<h2>界面气质方向</h2>
+<p class="subtitle">目标不是普通后台，而是“可监督的 AI 浏览操作台”。请选择桌面客户端和插件面板都要遵循的视觉方向。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:
+      radial-gradient(circle at 20% 20%, rgba(250, 204, 21, 0.22), transparent 30%),
+      linear-gradient(135deg, #141414 0%, #202020 55%, #0f0f0f 100%);
+      color:#f5f5f4; padding:18px; min-height:250px; position:relative; overflow:hidden;">
+      <div style="font-size:11px; letter-spacing:0.24em; text-transform:uppercase; color:#facc15;">Direction A</div>
+      <div style="font-size:34px; line-height:0.95; font-weight:700; margin-top:10px;">Industrial<br/>Mission Deck</div>
+      <div style="margin-top:14px; display:grid; grid-template-columns:1.4fr 0.8fr; gap:10px;">
+        <div style="border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:12px; background:rgba(255,255,255,0.05);">
+          <div style="font-size:12px; color:#fde68a;">Live Run</div>
+          <div style="height:74px; margin-top:8px; border-radius:10px; background:linear-gradient(180deg, rgba(250,204,21,0.18), rgba(255,255,255,0.03)); position:relative;">
+            <div style="position:absolute; left:10px; right:10px; bottom:10px; height:8px; border-radius:999px; background:#facc15;"></div>
+          </div>
+        </div>
+        <div style="display:grid; gap:10px;">
+          <div style="border-radius:12px; background:#292524; padding:10px;">
+            <div style="font-size:11px; color:#a8a29e;">Risk Gate</div>
+            <div style="margin-top:8px; height:6px; background:#f97316; border-radius:999px;"></div>
+          </div>
+          <div style="border-radius:12px; background:#292524; padding:10px;">
+            <div style="font-size:11px; color:#a8a29e;">Profile</div>
+            <div style="margin-top:8px; width:38px; height:38px; border-radius:10px; background:#44403c;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="position:absolute; right:-18px; bottom:-18px; width:120px; height:120px; border:1px solid rgba(250,204,21,0.22); border-radius:50%;"></div>
+    </div>
+    <div class="card-body">
+      <h3>工业任务舱</h3>
+      <p>深色、硬朗、偏调度台。强调状态灯、进度轨、风险门和执行强度，适合“自动化控制中心”的感觉。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:
+      linear-gradient(180deg, #f7f1e8 0%, #efe4d6 100%);
+      color:#231815; padding:18px; min-height:250px; position:relative; overflow:hidden;">
+      <div style="font-size:11px; letter-spacing:0.24em; text-transform:uppercase; color:#9a3412;">Direction B</div>
+      <div style="display:grid; grid-template-columns:1.1fr 0.9fr; gap:14px; margin-top:12px;">
+        <div>
+          <div style="font-size:40px; line-height:0.88; font-weight:700;">Editorial<br/>Control Room</div>
+          <div style="margin-top:12px; font-size:13px; line-height:1.5; color:#57534e;">像高级编辑台，不像传统控制台。把 AI 计划、审阅、执行直播做成有层次的编排界面。</div>
+        </div>
+        <div style="border-left:1px solid rgba(120,53,15,0.22); padding-left:14px;">
+          <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.12em; color:#a16207;">Run Sheet</div>
+          <div style="margin-top:10px; display:grid; gap:8px;">
+            <div style="padding:8px 10px; border-radius:999px; border:1px solid rgba(120,53,15,0.18); background:rgba(255,255,255,0.45);">01 Draft plan</div>
+            <div style="padding:8px 10px; border-radius:999px; border:1px solid rgba(120,53,15,0.18); background:#1f2937; color:#f8fafc;">02 Live execution</div>
+            <div style="padding:8px 10px; border-radius:999px; border:1px solid rgba(120,53,15,0.18); background:rgba(255,255,255,0.45);">03 Human handoff</div>
+          </div>
+        </div>
+      </div>
+      <div style="position:absolute; left:18px; right:18px; bottom:18px; height:52px; border-top:1px solid rgba(120,53,15,0.2); display:flex; align-items:end; gap:10px;">
+        <div style="width:56px; height:22px; background:#b45309;"></div>
+        <div style="width:92px; height:12px; background:#d6d3d1;"></div>
+        <div style="width:140px; height:32px; background:#fb7185;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>编辑式控制室</h3>
+      <p>暖色纸感、杂志编排、强信息层级。把任务计划和直播执行做成“审片台”体验，更有产品感，也更容易做出差异化。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:
+      radial-gradient(circle at 80% 20%, rgba(14,165,233,0.2), transparent 26%),
+      linear-gradient(150deg, #eff6ff 0%, #dbeafe 45%, #f8fafc 100%);
+      color:#0f172a; padding:18px; min-height:250px; position:relative; overflow:hidden;">
+      <div style="font-size:11px; letter-spacing:0.24em; text-transform:uppercase; color:#0369a1;">Direction C</div>
+      <div style="font-size:34px; line-height:0.95; font-weight:700; margin-top:10px;">Cartographic<br/>Flow Grid</div>
+      <div style="margin-top:14px; display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
+        <div style="border-radius:14px; background:rgba(255,255,255,0.7); padding:10px; min-height:76px;">Intent</div>
+        <div style="border-radius:14px; background:rgba(255,255,255,0.7); padding:10px; min-height:76px;">Plan</div>
+        <div style="border-radius:14px; background:#0f172a; color:white; padding:10px; min-height:76px;">Run</div>
+      </div>
+      <div style="position:absolute; inset:auto 14px 16px 14px; display:flex; align-items:center; gap:8px;">
+        <div style="flex:1; height:2px; background:#0ea5e9;"></div>
+        <div style="width:10px; height:10px; border-radius:50%; background:#0ea5e9;"></div>
+        <div style="width:10px; height:10px; border-radius:50%; background:#38bdf8;"></div>
+        <div style="width:10px; height:10px; border-radius:50%; background:#7dd3fc;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>地图式流程栅格</h3>
+      <p>浅色、理性、流程图导向。更突出任务路径和状态迁移，适合把复杂自动化拆成可追踪节点。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>我当前的推荐</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>推荐 B</h4>
+      <ul>
+        <li>最容易把“计划预览 + 审批 + 直播执行”做出产品辨识度</li>
+        <li>桌面端和插件面板都能共享同一套编排语言</li>
+        <li>比纯工业风更容易承载大量文本与步骤说明</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>代价</h4>
+      <ul>
+        <li>实现时需要更强的版式纪律，做不好会显得花</li>
+        <li>需要克制动效，避免“杂志感”压过执行效率</li>
+      </ul>
+    </div>
+  </div>
+</div>

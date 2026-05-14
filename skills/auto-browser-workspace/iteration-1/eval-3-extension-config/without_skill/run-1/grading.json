@@ -1,0 +1,50 @@
+{
+  "expectations": [
+    {
+      "text": "mentions-extension-setup: The answer explains how to load the extension in Chrome. Expect: mentions chrome://extensions, developer mode, load unpacked, extension/ directory",
+      "passed": true,
+      "evidence": "answer.md lines 11-17: \"Open Chrome and navigate to chrome://extensions/\", \"Enable Developer mode (toggle in the top-right corner)\", \"Click Load unpacked and select the project's extension/ directory: /home/rczx/workspace/rinbarpen/projects/auto-browser/extension/\""
+    },
+    {
+      "text": "mentions-sidepanel: The answer mentions the sidepanel as the operator console. Expect: references sidepanel or sidepanel.html",
+      "passed": true,
+      "evidence": "answer.md line 5: \"Chrome MV3 sidepanel\"; line 132: \"Monitor progress in the sidepanel's timeline strip\"; line 188: \"extension/sidepanel.js + sidepanel.html\"; plus full keyboard shortcuts table for the sidepanel at lines 136-144"
+    },
+    {
+      "text": "explains-extension-execution-flow: The answer explains how extension execution differs from service execution. Expect: mentions observe-decide-act cycle, POST /api/tasks/:id/decide, no system mouse, DOM-only actions",
+      "passed": false,
+      "evidence": "answer.md does mention the observe-decide-act cycle (lines 131, 150) but does NOT mention POST /api/tasks/:id/decide, no system mouse, or DOM-only actions. Three of four expected indicators are missing."
+    },
+    {
+      "text": "explains-credential-file-format: The answer shows the credentials.json format. Expect: Shows the JSON structure with sites, username, password fields",
+      "passed": true,
+      "evidence": "answer.md lines 50-62 shows complete JSON: {\"sites\": {\"example.com\": {\"username\": \"your-username\", \"password\": \"your-password\"}, ...}}. config.md lines 7-27 also shows the same structure with multiple site entries."
+    },
+    {
+      "text": "mentions-site-permissions: The answer mentions that the extension requests runtime site permissions. Expect: mentions granting site access or permissions per origin",
+      "passed": true,
+      "evidence": "answer.md Step 7 (lines 170-178): \"Granting Site Permissions in the Extension\", \"A permission dialog appears in the sidepanel showing 'Permission required for <origin>'\", \"Click Grant site access to approve the permission for that origin\", \"chrome.permissions.request()\", \"Details -> Site access\""
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 1,
+    "total": 5,
+    "pass_rate": 0.8
+  },
+  "execution_metrics": {
+    "output_chars": 15057
+  },
+  "timing": {
+    "executor_duration_seconds": 281.3,
+    "total_duration_seconds": 281.3
+  },
+  "eval_feedback": {
+    "suggestions": [
+      "Mention the POST /api/tasks/:id/decide endpoint explicitly when explaining the extension execution flow to make the architectural distinction between service-side and extension-side execution clearer.",
+      "Note that the extension has no system mouse and performs DOM-only actions, which is a key operational difference from the Playwright-based service execution.",
+      "The credential limitation section is a good start on the difference, but it focuses on credentials rather than the broader architectural difference in execution model."
+    ],
+    "overall": "The answer is thorough on extension setup, credentials configuration, and site permissions. The main gap is in explaining the extension execution flow differences: it mentions the observe-decide-act cycle but omits the specific endpoint (POST /api/tasks/:id/decide), the lack of system mouse, and the DOM-only action model."
+  }
+}

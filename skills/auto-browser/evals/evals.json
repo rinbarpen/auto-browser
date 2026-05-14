@@ -1,0 +1,30 @@
+{
+  "skill_name": "auto-browser",
+  "skill_path": "/home/rczx/workspace/rinbarpen/projects/auto-browser/skills/auto-browser/SKILL.md",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to automate logging into a website and checking my dashboard. I have the auto-browser tool installed in my project at /home/rczx/workspace/rinbarpen/projects/auto-browser. Can you help me set up and run a browser automation task that navigates to a login page, fills in credentials, and checks the dashboard? I want to use the CLI tool directly.",
+      "expected_output": "A CLI command sequence using auto-browser submit/run that demonstrates how to accomplish a login+dashboard check workflow, explaining the dual-model setup, task lifecycle, and credential store configuration.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want to use the auto-browser HTTP API to programmatically create and execute browser tasks from my own Node.js script. Show me how to use the REST API to submit a goal, approve the task, and stream the events via SSE. The control service runs on port 4317.",
+      "expected_output": "A complete example showing curl or fetch-based usage of the HTTP API — creating a conversation, submitting a message (goal), approving the task, and consuming the SSE event stream. Should include the endpoint paths and expected JSON bodies.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I want to set up the Auto Browser Chrome extension and configure it to use credentials from a file. Can you walk me through the steps? I already have the control service running.",
+      "expected_output": "A step-by-step guide covering: loading the extension in Chrome, opening the sidepanel, what the extension flow looks like, how to set up ~/.auto-browser/credentials.json, how to use --credentials-path, and how the extension execution path differs from the service path.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "我想用 auto-browser 来自动化处理淘宝和虾皮(Shopee)的消息收集。这些网站都有很强的反爬和验证码机制（滑块验证码、设备指纹检测、短信验证等）。帮我规划一下整体方案，用什么策略来处理这些验证码问题最靠谱？",
+      "expected_output": "A prioritized strategy: 1) cookie reuse (--cookies-path) as best approach, 2) handoff mode as fallback, 3) fully automatic as last resort. Should include concrete CLI examples and credential store configuration.",
+      "files": []
+    }
+  ]
+}

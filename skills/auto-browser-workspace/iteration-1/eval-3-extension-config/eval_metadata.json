@@ -1,0 +1,32 @@
+{
+  "eval_id": 3,
+  "eval_name": "extension-config",
+  "prompt": "I want to set up the Auto Browser Chrome extension and configure it to use credentials from a file. Can you walk me through the steps? I already have the control service running.",
+  "assertions": [
+    {
+      "name": "mentions-extension-setup",
+      "description": "The answer explains how to load the extension in Chrome",
+      "expected": "Mentions chrome://extensions, developer mode, load unpacked, extension/ directory"
+    },
+    {
+      "name": "mentions-sidepanel",
+      "description": "The answer mentions the sidepanel as the operator console",
+      "expected": "References sidepanel or sidepanel.html"
+    },
+    {
+      "name": "explains-extension-execution-flow",
+      "description": "The answer explains how extension execution differs from service execution",
+      "expected": "Mentions observe-decide-act cycle, POST /api/tasks/:id/decide, no system mouse, DOM-only actions"
+    },
+    {
+      "name": "explains-credential-file-format",
+      "description": "The answer shows the credentials.json format",
+      "expected": "Shows the JSON structure with sites, username, password fields"
+    },
+    {
+      "name": "mentions-site-permissions",
+      "description": "The answer mentions that the extension requests runtime site permissions",
+      "expected": "Mentions granting site access or permissions per origin"
+    }
+  ]
+}

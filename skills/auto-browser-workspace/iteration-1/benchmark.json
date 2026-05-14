@@ -1,0 +1,410 @@
+{
+  "metadata": {
+    "skill_name": "auto-browser",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-05-11T04:11:36Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 215.8,
+        "tokens": 14116,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "uses-auto-browser-command: The answer uses the auto-browser CLI command (run/submit/approve) rather than raw agent-browser commands or generic Playwright",
+          "passed": true,
+          "evidence": "answer.md extensively uses auto-browser CLI commands: 'auto-browser run --goal \"...\" --planner-model deepseek-v4-pro --executor-model deepseek-v4-flash --tui' (line 87), 'auto-browser submit --goal \"...\" --planner-model deepseek-v4-pro --json' (line 123), 'auto-browser approve --task-id <task-id> --executor-model deepseek-v4-flash --tui' (line 129), 'auto-browser serve --port 4317' (line 67), 'auto-browser state --json' (line 193), 'auto-browser resume --task-id <task-id>' (line 169). No raw agent-browser or Playwright commands are used."
+        },
+        {
+          "text": "mentions-model-config: The answer explains the need for planner and executor models",
+          "passed": true,
+          "evidence": "answer.md line 5: 'It uses a dual-LLM architecture: a **planner model** drafts a step-by-step plan, and an **executor model** decides each action.' Commands include explicit --planner-model and --executor-model flags (lines 89-91), and --model-tier presets are explained: 'standard: planner=deepseek-v4-pro, executor=deepseek-v4-flash; premium: planner=deepseek-v4-pro, executor=deepseek-v4-pro; economy: planner=deepseek-v4-flash, executor=deepseek-v4-flash' (lines 112-115)."
+        },
+        {
+          "text": "mentions-credential-store: The answer mentions the credential store (~/.auto-browser/credentials.json) as the way to provide credentials",
+          "passed": true,
+          "evidence": "answer.md line 20: 'Credential store exists: ~/.auto-browser/credentials.json is already set up with example entries.' Lines 35-58 show the full credential JSON format. Line 59: 'The credential store supports hostname matching.' Commands.md lines 20-35 show how to create credentials.json with chmod 600. The --credentials-path flag is listed in the CLI reference table (commands.md line 176)."
+        },
+        {
+          "text": "explains-task-lifecycle: The answer explains the task lifecycle (submit \u2192 draft \u2192 approve \u2192 running \u2192 complete)",
+          "passed": true,
+          "evidence": "answer.md lines 94-101: 'What happens: 1. The planner model drafts a plan... 2. The task is immediately approved for execution 3. The AgentLoopExecutionDriver enters the observe-decide-act loop (max 20 iterations).' Lines 117-133 cover the two-step submit-then-approve workflow. Lines 181-182 mention TUI status badge showing 'draft/running/completed/handoff/failed'. The handoff lifecycle step is covered in lines 155-170 (CAPTCHA handling and resume)."
+        },
+        {
+          "text": "correct-captcha-strategy: The answer recommends cookie persistence as the primary strategy for CAPTCHA handling",
+          "passed": true,
+          "evidence": "answer.md lines 135-153: 'Cookie Persistence Strategy (Recommended for Repeated Use)' section explicitly recommends --cookies-path as the primary approach: 'This is the **most reliable approach**. Cookies are loaded at task start and saved on completion... This bypasses ALL verification (login CAPTCHAs, sliders, SMS codes, device fingerprinting).' Lines 157-162 prioritize three layers: 1) Cookie Reuse (best), 2) Handoff (fallback), 3) Automatic CAPTCHA solving (last resort)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 321.7,
+        "tokens": 26197,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "uses-correct-api-endpoints",
+          "passed": true,
+          "evidence": "answer.md explicitly lists all required endpoints in the API Endpoints table (lines 24-30): POST /api/conversations, POST /api/conversations/:id/messages, POST /api/tasks/:id/approve, POST /api/tasks/:id/run, GET /api/events. Each endpoint is documented with full request/response shapes and used consistently across all four code examples in examples.md."
+        },
+        {
+          "text": "includes-sse-streaming",
+          "passed": true,
+          "evidence": "SSE streaming is demonstrated in three distinct ways: (1) answer.md lines 134-157 explain the SSE format, event structure, and all event types; (2) examples.md Example 1 (lines 40-59) shows curl -N for consuming the SSE stream; (3) examples.md Example 3 (lines 205-316) and Example 4 (lines 537-571) both show full fetch ReadableStream parsing with buffer management, line splitting on double-newline boundaries, and event dispatch by taskId."
+        },
+        {
+          "text": "shows-request-body-format",
+          "passed": true,
+          "evidence": "JSON body formats are shown for all key requests: answer.md lines 60-67 show the submit-goal body with content, plannerModel, browserConfig fields; lines 99-101 show the approve body with executorModel; lines 119-121 show the run body with executorModel. examples.md reinforces this across all examples with complete fetch calls including headers and JSON.stringify calls (e.g., Example 2 lines 80-90, Example 3 lines 170-175)."
+        },
+        {
+          "text": "explains-task-workflow",
+          "passed": true,
+          "evidence": "The full programmatic workflow is explained in answer.md: lines 7-20 describe the three-phase lifecycle (Submit -> Approve -> Execute), lines 22-35 map each phase to its API endpoint, and lines 37-130 walk through each step in order (Create Conversation -> Submit Goal -> Approve/Run -> SSE Events). All four code examples in examples.md follow this exact sequence: createConversation() -> submitGoal() -> approveAndWait()/startTask() + streamEvents()."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 206.5,
+        "tokens": 14974,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mentions-extension-setup: The answer explains how to load the extension in Chrome. Expect: mentions chrome://extensions, developer mode, load unpacked, extension/ directory",
+          "passed": true,
+          "evidence": "answer.md Step 2 (lines 69-78): 'Open Chrome and navigate to chrome://extensions', 'Enable Developer mode', 'Click Load unpacked', 'Select the extension/ directory'"
+        },
+        {
+          "text": "mentions-sidepanel: The answer mentions the sidepanel as the operator console. Expect: references sidepanel or sidepanel.html",
+          "passed": true,
+          "evidence": "answer.md Step 3 (lines 98-111) describes the sidepanel as a chat-style operator console; line 87 lists sidepanel.html in the extension file table; line 87 calls it 'Chat-style operator console UI'"
+        },
+        {
+          "text": "explains-extension-execution-flow: The answer explains how extension execution differs from service execution. Expect: mentions observe-decide-act cycle, POST /api/tasks/:id/decide, no system mouse, DOM-only actions",
+          "passed": true,
+          "evidence": "answer.md line 85: 'background.js \u2014 Service worker that runs the observe-decide-act loop for extension tasks'; line 122: 'sends to POST /api/tasks/:id/decide'; lines 189-191 contrast extension mode (no Playwright, DOM overlays, content-script actions) vs managed mode (system mouse, CDP, screenshot observations)"
+        },
+        {
+          "text": "explains-credential-file-format: The answer shows the credentials.json format. Expect: Shows the JSON structure with sites, username, password fields",
+          "passed": true,
+          "evidence": "answer.md lines 19-35 shows full JSON template with 'sites' object containing domain keys with 'username' and 'password' fields (example.com, github.com, taobao.com); config.md lines 7-31 repeats with more examples"
+        },
+        {
+          "text": "mentions-site-permissions: The answer mentions that the extension requests runtime site permissions. Expect: mentions granting site access or permissions per origin",
+          "passed": true,
+          "evidence": "answer.md line 94: 'optional_host_permissions: http://*/* and https://*/* (requested per-site as needed)'; line 109: 'Buttons for: send, refresh, grant site permissions...'; line 200: 'In the sidepanel, click the Grant Permission button'; config.md line 185: 'the extension requests it per-site when needed'"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 183.6,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "recommends-cookie-reuse-first",
+          "passed": true,
+          "evidence": "Answer clearly states cookie reuse as the top priority: '\u7b2c\u4e00\u4f18\u5148\u7ea7\uff1aCookie \u590d\u7528\uff08\u6700\u4f73\u65b9\u6848 \u2014 \u5168\u81ea\u52a8\u3001\u6700\u5feb\uff09'. The answer opens with '\u6700\u53ef\u9760\u7684\u65b9\u6848\u662f\u5229\u7528 cookie \u6301\u4e45\u5316\uff0c\u7ed5\u8fc7\u767b\u5f55\u73af\u8282' and provides multiple --cookies-path usage examples. Commands.md includes concrete commands like 'auto-browser run --goal \"...\" --cookies-path ./taobao-cookies.json --headless'."
+        },
+        {
+          "text": "describes-cookie-workflow",
+          "passed": true,
+          "evidence": "Answer fully describes the two-phase process. Phase 1 \u2014 headed login: '\u9996\u6b21\u767b\u5f55\uff08\u4eba\u5de5\u53c2\u4e0e\u4e00\u6b21\uff09' with diagram showing headed mode, AI navigation, auto-fill, manual CAPTCHA, cookie save to file. Phase 2 \u2014 subsequent automated runs: '\u540e\u7eed\u4efb\u52a1\uff08\u5168\u81ea\u52a8\uff0c\u96f6\u4eba\u5de5\uff09' with headless mode and cookie reuse. Specific commands in Commands.md show '--headed --cookies-path' for initial login and '--headless --cookies-path' for daily collection."
+        },
+        {
+          "text": "mentions-handoff-fallback",
+          "passed": true,
+          "evidence": "Handoff is presented as the second-priority fallback: '\u7b2c\u4e8c\u4f18\u5148\u7ea7\uff1aHandoff \u6a21\u5f0f\uff08\u534a\u81ea\u52a8\u56de\u9000\u65b9\u6848\uff09'. Answer states it is used '\u5f53 cookie \u8fc7\u671f\u6216\u9700\u8981\u91cd\u65b0\u767b\u5f55\u65f6\u4f7f\u7528'. Commands.md references: '\u9047\u5230\u9a8c\u8bc1\u7801\u4f1a\u89e6\u53d1 handoff\u3002\u4f60\u624b\u52a8\u5728\u6d4f\u89c8\u5668\u7a97\u53e3\u4e2d\u5b8c\u6210\u6ed1\u5757/\u77ed\u4fe1\u9a8c\u8bc1' and shows 'auto-browser resume --task-id <task-id>'."
+        },
+        {
+          "text": "explains-handoff-resume-flow",
+          "passed": true,
+          "evidence": "The complete handoff + resume sequence is described step by step: 'AI \u5bfc\u822a\u5230\u767b\u5f55\u9875\u9762 \u2192 AI \u4ece credentials.json \u8bfb\u53d6\u5e76\u586b\u5145\u7528\u6237\u540d/\u5bc6\u7801 \u2192 \u9047\u5230\u9a8c\u8bc1\u7801 \u2192 AI \u68c0\u6d4b\u5230 blocker \u2192 \u81ea\u52a8\u89e6\u53d1 handoff \u2192 \u4f60\u624b\u52a8\u5b8c\u6210\u6ed1\u5757/\u77ed\u4fe1/\u70b9\u9009\u9a8c\u8bc1\u7801 \u2192 \u6267\u884c auto-browser resume \u6062\u590d\u4efb\u52a1 \u2192 AI \u7ee7\u7eed\u6267\u884c\u6d88\u606f\u6536\u96c6'. Commands.md provides the specific resume command: 'auto-browser resume --task-id <task-id> --planner-model deepseek-v4-pro'."
+        },
+        {
+          "text": "mentions-credential-store",
+          "passed": true,
+          "evidence": "Credential store is explicitly mentioned and configured. Answer states: '\u521b\u5efa ~/.auto-browser/credentials.json\uff08\u6587\u4ef6\u6743\u9650 0600\uff09' with the full JSON structure. It describes credential matching: '\u7cfb\u7edf\u4f1a\u6839\u636e\u57df\u540d\u81ea\u52a8\u5339\u914d\u5bf9\u5e94\u51ed\u8bc1\uff08\u652f\u6301\u5b50\u57df\u540d fallback\uff09'. Commands.md shows the file creation command with 'chmod 0600 ~/.auto-browser/credentials.json' and uses '--credentials-path ~/.auto-browser/credentials.json' in commands."
+        },
+        {
+          "text": "prioritizes-correctly",
+          "passed": true,
+          "evidence": "Answer establishes a clear three-tier priority: '\u7b2c\u4e00\u4f18\u5148\u7ea7\uff1aCookie \u590d\u7528\uff08\u6700\u4f73\u65b9\u6848\uff09', '\u7b2c\u4e8c\u4f18\u5148\u7ea7\uff1aHandoff \u6a21\u5f0f\uff08\u534a\u81ea\u52a8\u56de\u9000\u65b9\u6848\uff09', '\u7b2c\u4e09\u4f18\u5148\u7ea7\uff1a\u5168\u81ea\u52a8\uff08\u515c\u5e95\u65b9\u6848\uff09'. It explains when to use each: cookie reuse as the daily driver, handoff as the fallback for expired cookies/re-login, and fully automatic only for built-in supported CAPTCHA types. For Taobao/Shopee it explicitly states fully automatic is not viable: '\u5bf9\u6dd8\u5b9d/\u867e\u76ae\u4e0d\u9002\u7528\u2014\u2014\u5b83\u4eec\u7684\u6ed1\u5757\u5c5e\u4e8e\u963f\u91cc/\u817e\u8baf\u7cfb\u79c1\u6709\u534f\u8bae\uff0c\u81ea\u52a8\u7ed5\u8fc7\u6210\u529f\u7387\u6781\u4f4e\u4e14\u98ce\u9669\u9ad8'."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 312.5,
+        "tokens": 18050,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "uses-auto-browser-command",
+          "passed": true,
+          "evidence": "The answer uses auto-browser CLI commands exclusively (run, submit, approve, serve, state, resume) throughout. Example: 'auto-browser run --goal \"navigate to https://example.com/login, log in with saved credentials, and check the dashboard\"' (answer.md line 143). No raw agent-browser or Playwright commands are used."
+        },
+        {
+          "text": "mentions-model-config",
+          "passed": true,
+          "evidence": "The answer explicitly explains the dual-LLM architecture: 'Planner Model (--planner-model): Drafts the execution plan from a natural-language goal' and 'Executor Model (--executor-model): Makes per-step decisions (click ref, fill field, scroll, etc.)' (answer.md lines 9-10). It also covers model tiers (max, standard, economy, free) and shows configuration via CLI flags, environment variables, and --model-tier."
+        },
+        {
+          "text": "mentions-credential-store",
+          "passed": true,
+          "evidence": "The answer explicitly instructs creating ~/.auto-browser/credentials.json: 'Create or edit ~/.auto-browser/credentials.json' with a JSON example showing sites/username/password structure, hostname matching rules, and chmod 600 permissions (answer.md lines 68-89). Commands.md also provides the full shell command to create this file (commands.md lines 5-23)."
+        },
+        {
+          "text": "explains-task-lifecycle",
+          "passed": true,
+          "evidence": "The answer explicitly shows the lifecycle: 'Submit goal --> draft (plan drafted) --> ready (approved) --> running (execute loop) --> completed | handoff | failed' (answer.md lines 16-18). It also distinguishes between the one-shot 'run' command (submit + approve + execute in one step) and the two-step 'submit + approve' workflow (answer.md lines 139-162), plus describes the 20-iteration observe-decide-act execution loop."
+        },
+        {
+          "text": "correct-captcha-strategy",
+          "passed": true,
+          "evidence": "The answer has a dedicated 'Step 4: Cookie Persistence (Stay Logged In)' section (answer.md lines 200-214) that recommends logging in once, saving cookies via --cookies-path, and reusing them in subsequent tasks to avoid re-logging in \u2014 which is the primary way to avoid CAPTCHA challenges that appear on login pages. While not explicitly labeled 'CAPTCHA strategy,' cookie persistence is presented as the recommended workflow pattern before the separate Cloudflare/CAPTCHA section (lines 224-229) which describes the executor's built-in passive handling as a secondary mechanism."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 384.4,
+        "tokens": 33811,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "The answer references correct API endpoints with paths",
+          "passed": true,
+          "evidence": "answer.md clearly references all required endpoints: POST /api/conversations (line 9, 104-119), POST /api/conversations/:id/messages (line 10, 138-162), POST /api/tasks/:id/approve (line 12, 209-239), POST /api/tasks/:id/run (line 13, 241-262), and GET /api/events (line 41-54). examples.md reinforces all endpoints in helper functions and code examples throughout."
+        },
+        {
+          "text": "The answer demonstrates how to consume the SSE event stream",
+          "passed": true,
+          "evidence": "answer.md lines 402-427 show consuming GET /api/events via fetch() with a ReadableStream reader, splitting on double newlines, and parsing data: lines. examples.md lines 136-187 implement a complete connectSSE() async generator function using fetch + ReadableStream reader to yield parsed TaskEvent objects."
+        },
+        {
+          "text": "The answer shows the JSON body format for API requests",
+          "passed": true,
+          "evidence": "answer.md lines 143-161 show the full JSON body for POST /api/conversations/:id/messages with content, plannerModel, modelTier, context, and browserConfig (with all nested fields). Lines 214-219 show the body for POST /api/tasks/:id/approve with executorModel and modelTier. examples.md helper functions (lines 57-75, 86-94, 103-113) build these bodies programmatically with all expected fields."
+        },
+        {
+          "text": "The answer explains the full programmatic workflow from conversation creation to task completion",
+          "passed": true,
+          "evidence": "answer.md explicitly documents both the blocking workflow (lines 380-388: create conversation -> submit goal -> approve) and the non-blocking SSE workflow (lines 391-401: create conversation -> submit goal -> open SSE -> run task -> stream events -> close on completion). examples.md provides 5 runnable examples (examples 1-5) that fully implement both workflows end-to-end with error handling and cancellation support."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 281.3,
+        "tokens": 15057,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mentions-extension-setup: The answer explains how to load the extension in Chrome. Expect: mentions chrome://extensions, developer mode, load unpacked, extension/ directory",
+          "passed": true,
+          "evidence": "answer.md lines 11-17: \"Open Chrome and navigate to chrome://extensions/\", \"Enable Developer mode (toggle in the top-right corner)\", \"Click Load unpacked and select the project's extension/ directory: /home/rczx/workspace/rinbarpen/projects/auto-browser/extension/\""
+        },
+        {
+          "text": "mentions-sidepanel: The answer mentions the sidepanel as the operator console. Expect: references sidepanel or sidepanel.html",
+          "passed": true,
+          "evidence": "answer.md line 5: \"Chrome MV3 sidepanel\"; line 132: \"Monitor progress in the sidepanel's timeline strip\"; line 188: \"extension/sidepanel.js + sidepanel.html\"; plus full keyboard shortcuts table for the sidepanel at lines 136-144"
+        },
+        {
+          "text": "explains-extension-execution-flow: The answer explains how extension execution differs from service execution. Expect: mentions observe-decide-act cycle, POST /api/tasks/:id/decide, no system mouse, DOM-only actions",
+          "passed": false,
+          "evidence": "answer.md does mention the observe-decide-act cycle (lines 131, 150) but does NOT mention POST /api/tasks/:id/decide, no system mouse, or DOM-only actions. Three of four expected indicators are missing."
+        },
+        {
+          "text": "explains-credential-file-format: The answer shows the credentials.json format. Expect: Shows the JSON structure with sites, username, password fields",
+          "passed": true,
+          "evidence": "answer.md lines 50-62 shows complete JSON: {\"sites\": {\"example.com\": {\"username\": \"your-username\", \"password\": \"your-password\"}, ...}}. config.md lines 7-27 also shows the same structure with multiple site entries."
+        },
+        {
+          "text": "mentions-site-permissions: The answer mentions that the extension requests runtime site permissions. Expect: mentions granting site access or permissions per origin",
+          "passed": true,
+          "evidence": "answer.md Step 7 (lines 170-178): \"Granting Site Permissions in the Extension\", \"A permission dialog appears in the sidepanel showing 'Permission required for <origin>'\", \"Click Grant site access to approve the permission for that origin\", \"chrome.permissions.request()\", \"Details -> Site access\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 267.4,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "recommends-cookie-reuse-first",
+          "passed": true,
+          "evidence": "answer.md line 33-34 explicitly states priority: 'Cookie \u590d\u7528 > Handoff \u534a\u81ea\u52a8 > \u5168\u81ea\u52a8\u5c1d\u8bd5 > \u653e\u5f03\u5e76\u5207\u6362\u65b9\u6848'. Line 38 declares 'Layer 1\uff08\u6700\u4f73\u65b9\u6848\uff09\uff1aCookie \u6301\u4e45\u5316\u590d\u7528 \u2014 \u5168\u81ea\u52a8\uff0c\u96f6\u6469\u64e6'. commands.md contains numerous --cookies-path usage examples throughout sections 1.2, 2.1, 2.2, 2.3, and 4.1."
+        },
+        {
+          "text": "describes-cookie-workflow",
+          "passed": true,
+          "evidence": "answer.md lines 42-55 describe the two-phase process: '\u7b2c\u4e00\u6b21\uff08\u624b\u52a8\u8f85\u52a9\uff09\uff1a--headed \u542f\u52a8\u6709\u5934\u6d4f\u89c8\u5668 \u2192 AI \u81ea\u52a8\u586b\u5199\u8d26\u53f7\u5bc6\u7801 \u2192 \u9047\u5230\u6ed1\u5757/\u77ed\u4fe1 \u2192 handoff \u2192 \u624b\u52a8\u5b8c\u6210 \u2192 cookies \u81ea\u52a8\u4fdd\u5b58' followed by '\u540e\u7eed\uff08\u5168\u81ea\u52a8\uff09\uff1a--cookies-path \u52a0\u8f7d\u5df2\u4fdd\u5b58\u7684 cookies \u2192 \u76f4\u63a5\u8fdb\u5165\u6d88\u606f\u9875\u9762 \u2192 \u5168\u81ea\u52a8\u6536\u96c6\u6d88\u606f'. commands.md section 1.2 shows initial headed login commands with --cookies-path, section 2 shows subsequent automated runs, section 2.3 explicitly states headless mode only when cookies confirmed valid."
+        },
+        {
+          "text": "mentions-handoff-fallback",
+          "passed": true,
+          "evidence": "answer.md line 63: 'Layer 2\uff08\u56de\u9000\u65b9\u6848\uff09\uff1aHandoff \u534a\u81ea\u52a8\u6a21\u5f0f \u2014 \u4ec5\u5728 cookie \u8fc7\u671f\u65f6\u4f7f\u7528'. Lines 66-77 describe handoff scenarios and workflow. Lines 78-83 list built-in handoff trigger conditions. commands.md lines 63-68 and 178-180 reference the `auto-browser resume --task-id <task-id>` command."
+        },
+        {
+          "text": "explains-handoff-resume-flow",
+          "passed": true,
+          "evidence": "answer.md lines 71-77 describe the complete sequence: '1. AI \u81ea\u52a8\u5bfc\u822a\u5230\u767b\u5f55\u9875; 2. AI \u4ece credentials.json \u81ea\u52a8\u586b\u5165\u7528\u6237\u540d\u5bc6\u7801; 3. AI \u68c0\u6d4b\u5230\u6ed1\u5757/\u77ed\u4fe1/\u4e8c\u6b21\u9a8c\u8bc1 \u2192 \u81ea\u52a8\u89e6\u53d1 handoff; 4. \u4f60\u624b\u52a8\u5b8c\u6210\u9a8c\u8bc1; 5. resume \u547d\u4ee4\u8ba9 AI \u7ee7\u7eed\u6267\u884c\u540e\u7eed\u4efb\u52a1'. Lines 45-46 repeat the flow. commands.md lines 63-68 and 176-181 provide explicit handoff \u2192 human solve \u2192 resume command sequences."
+        },
+        {
+          "text": "mentions-credential-store",
+          "passed": true,
+          "evidence": "answer.md line 15 mentions '\u4ece credentials.json \u81ea\u52a8\u586b\u5165\u7528\u6237\u540d\u5bc6\u7801' in the capability table. Line 73: 'AI \u4ece credentials.json \u81ea\u52a8\u586b\u5165\u7528\u6237\u540d\u5bc6\u7801'. commands.md lines 7-28 show complete ~/.auto-browser/credentials.json setup with taobao.com and shopee.tw entries. Lines 37-60 use --credentials-path ~/.auto-browser/credentials.json in run commands."
+        },
+        {
+          "text": "prioritizes-correctly",
+          "passed": true,
+          "evidence": "answer.md line 33-34 establishes the explicit priority order: 'Cookie \u590d\u7528 > Handoff \u534a\u81ea\u52a8 > \u5168\u81ea\u52a8\u5c1d\u8bd5 > \u653e\u5f03\u5e76\u5207\u6362\u65b9\u6848'. This is followed through with Layer 1 (best, cookie reuse), Layer 2 (fallback, handoff for expired cookies), Layer 3 (last resort, fully automatic only for simple cases). Lines 226-233 provide a ranking table quantifying reliability per approach. Line 237 explicitly warns: '\u4e0d\u8981\u6307\u671b\u5168\u81ea\u52a8\u89e3\u51b3\u6dd8\u5b9d/\u867e\u76ae\u7684\u9a8c\u8bc1\u7801'."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 231.9,
+        "stddev": 61.3767,
+        "min": 183.6,
+        "max": 321.7
+      },
+      "tokens": {
+        "mean": 13821.75,
+        "stddev": 10733.155,
+        "min": 0,
+        "max": 26197
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.95,
+        "stddev": 0.1,
+        "min": 0.8,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 311.4,
+        "stddev": 52.1927,
+        "min": 267.4,
+        "max": 384.4
+      },
+      "tokens": {
+        "mean": 16729.5,
+        "stddev": 13858.7492,
+        "min": 0,
+        "max": 33811
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.05",
+      "time_seconds": "-79.5",
+      "tokens": "-2908"
+    }
+  },
+  "notes": []
+}

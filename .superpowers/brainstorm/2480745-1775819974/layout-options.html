@@ -1,0 +1,58 @@
+<h2>Preview Layout Options</h2>
+<p class="subtitle">Current issue: the preview column is capped at 420px, so the browser surface loses usable width.</p>
+
+<div class="cards">
+  <div class="card" data-choice="fixed-swap" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Fixed Swap</div>
+        <div class="mockup-body" style="display:flex; gap:10px; min-height:240px;">
+          <div style="width:26%; background:#f7efe5; border-radius:14px; padding:12px; color:#3f2a1f;">Sidebar</div>
+          <div style="width:30%; background:#f7efe5; border-radius:14px; padding:12px; color:#3f2a1f;">Chat panel</div>
+          <div style="width:44%; background:#201816; border-radius:14px; padding:12px; color:#fff4ea;">Preview</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Default swap</h3>
+      <p>Preview starts wider than chat, but width stays fixed. Lowest implementation cost, lowest flexibility.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="draggable" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Draggable Splitter</div>
+        <div class="mockup-body" style="display:flex; gap:10px; min-height:240px; align-items:stretch;">
+          <div style="width:26%; background:#f7efe5; border-radius:14px; padding:12px; color:#3f2a1f;">Sidebar</div>
+          <div style="width:26%; background:#f7efe5; border-radius:14px; padding:12px; color:#3f2a1f;">Chat panel</div>
+          <div style="width:8px; border-radius:999px; background:linear-gradient(180deg, #e8b598, #cc6d45);"></div>
+          <div style="width:48%; background:#201816; border-radius:14px; padding:12px; color:#fff4ea;">Preview</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Preview wider + draggable</h3>
+      <p>Preview starts wider, and the divider can be dragged during manual operation. Best fit for your stated need.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="focus-mode" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Preview Focus Mode</div>
+        <div class="mockup-body" style="display:grid; gap:10px; min-height:240px;">
+          <div style="display:flex; gap:10px;">
+            <div style="width:28%; background:#f7efe5; border-radius:14px; padding:12px; color:#3f2a1f;">Sidebar</div>
+            <div style="width:72%; background:#f7efe5; border-radius:14px; padding:12px; color:#3f2a1f;">Chat panel</div>
+          </div>
+          <div style="background:#201816; border-radius:14px; padding:12px; color:#fff4ea;">Expanded preview mode</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Temporary maximize</h3>
+      <p>Keeps current layout until you enter a special mode. Useful if preview only needs extra space occasionally.</p>
+    </div>
+  </div>
+</div>

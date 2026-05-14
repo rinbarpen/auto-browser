@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auto Browser Operator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./sidepanel.css" />
+  </head>
+  <body>
+    <div class="panel-shell">
+      <header class="topbar">
+        <div class="topbar-copy">
+          <div class="topbar-title-row">
+            <h1 id="conversationTitle">Persistent chat</h1>
+            <p id="pageContext" class="page-context">Loading browser context...</p>
+          </div>
+        </div>
+
+        <div class="toolbar-actions">
+          <button
+            id="llmSettingsButton"
+            class="icon-button"
+            type="button"
+            aria-label="Open LLM settings"
+            aria-controls="llmSettingsPanel"
+            aria-expanded="false"
+            aria-keyshortcuts="Alt+L"
+            title="LLM settings (Alt+L)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v3M12 18v3M4.2 7.5l2.6 1.5M17.2 15l2.6 1.5M4.2 16.5 6.8 15M17.2 9l2.6-1.5M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z" />
+            </svg>
+          </button>
+          <button
+            id="menuToggleButton"
+            class="icon-button"
+            type="button"
+            aria-label="Open menu"
+            aria-controls="overlayPanel"
+            aria-expanded="false"
+            aria-keyshortcuts="Alt+M"
+            title="Open menu (Alt+M)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 7h14M5 12h14M5 17h14" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="main-column">
+        <div id="messageThread" class="message-thread" aria-live="polite"></div>
+
+        <section
+          id="timelineStrip"
+          class="timeline-strip"
+          tabindex="0"
+          aria-label="Task timeline"
+          aria-keyshortcuts="Alt+T"
+          title="Task timeline (Alt+T)"
+        ></section>
+
+        <section class="composer-shell">
+          <label class="field composer">
+            <textarea
+              id="goalInput"
+              rows="3"
+              placeholder="Tell Auto Browser what to do next..."
+              aria-keyshortcuts="Alt+I Control+Enter Meta+Enter"
+              title="Message input (Alt+I, Ctrl+Enter or Cmd+Enter to send)"
+            ></textarea>
+          </label>
+          <div class="button-row composer-actions">
+            <button id="sendButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 11.5 19.5 4 15 20l-3.8-5.1L4 11.5Z" />
+              </svg>
+              <span>Send</span>
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <button id="overlayBackdrop" class="overlay-backdrop" type="button" aria-label="Close open panel" hidden></button>
+
+      <aside id="overlayPanel" class="overlay-panel" aria-hidden="true" aria-labelledby="overlayTitle">
+        <div class="overlay-header">
+          <div>
+            <h2 id="overlayTitle">History</h2>
+          </div>
+          <button id="overlayCloseButton" class="icon-button" type="button" aria-label="Close panel">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <nav id="menuNav" class="menu-nav" aria-label="Menu views">
+          <button class="menu-nav-button" type="button" data-menu-view="history" aria-keyshortcuts="Alt+1">History</button>
+          <button class="menu-nav-button" type="button" data-menu-view="run" aria-keyshortcuts="Alt+2">Run</button>
+          <button class="menu-nav-button" type="button" data-menu-view="details" aria-keyshortcuts="Alt+3 Alt+4">Details</button>
+        </nav>
+
+        <section id="historyView" class="overlay-view" aria-hidden="true">
+          <div class="drawer-actions">
+            <button id="newConversationButton" class="secondary wide" type="button">New conversation</button>
+          </div>
+          <ul id="conversationList" class="conversation-list"></ul>
+        </section>
+
+        <section id="runView" class="overlay-view" aria-hidden="true">
+          <div class="session-copy">
+            <h3 id="taskTitle">No active session</h3>
+            <p id="taskSummary">Send a message to create or continue an extension conversation.</p>
+          </div>
+          <div class="button-row session-actions">
+            <button id="permissionButton" class="secondary" type="button">Grant site access</button>
+            <button id="resumeButton" type="button">Resume</button>
+            <button id="handoffButton" class="secondary" type="button">Handoff</button>
+            <button id="refreshButton" class="secondary" type="button">Refresh</button>
+          </div>
+        </section>
+
+        <section id="detailsView" class="overlay-view" aria-hidden="true">
+          <div class="details-block">
+            <span class="section-label">Conversation</span>
+            <p id="conversationMeta" class="meta-line">Select a conversation or start a new one.</p>
+          </div>
+        </section>
+      </aside>
+
+      <aside id="llmSettingsPanel" class="overlay-panel llm-settings-panel" aria-hidden="true" aria-labelledby="llmSettingsTitle">
+        <div class="overlay-header">
+          <div>
+            <h2 id="llmSettingsTitle">LLM settings</h2>
+          </div>
+          <button id="llmSettingsCloseButton" class="icon-button" type="button" aria-label="Close LLM settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <section class="overlay-view active" aria-hidden="false">
+          <label class="field">
+            <span>Preset</span>
+            <select id="llmPresetSelect"></select>
+          </label>
+          <label class="field">
+            <span>Preset name</span>
+            <input id="llmPresetNameInput" type="text" placeholder="Default" />
+          </label>
+          <label class="field">
+            <span>Provider preset</span>
+            <select id="providerPresetSelect"></select>
+          </label>
+          <label class="field">
+            <span>Provider name</span>
+            <input id="providerPresetNameInput" type="text" placeholder="Local LLM router" />
+          </label>
+          <label class="field">
+            <span>Provider</span>
+            <input id="providerInput" type="text" placeholder="llm-router" />
+          </label>
+          <label class="field">
+            <span>Base URL</span>
+            <input id="providerBaseUrlInput" type="text" placeholder="http://127.0.0.1:18000/v1" />
+          </label>
+          <label class="field">
+            <span>API key</span>
+            <input id="providerApiKeyInput" type="password" placeholder="Optional" />
+          </label>
+          <div class="button-row">
+            <button id="newProviderPresetButton" class="secondary" type="button">New provider</button>
+            <button id="deleteProviderPresetButton" class="secondary" type="button">Delete provider</button>
+          </div>
+          <label class="field">
+            <span>Planner provider</span>
+            <select id="plannerProviderPresetSelect"></select>
+          </label>
+          <label class="field">
+            <span>Planner model</span>
+            <input id="plannerModelInput" type="text" placeholder="openai/gpt-5.4" />
+          </label>
+          <label class="field">
+            <span>Executor provider</span>
+            <select id="executorProviderPresetSelect"></select>
+          </label>
+          <label class="field">
+            <span>Executor model</span>
+            <input id="executorModelInput" type="text" placeholder="openai/gpt-5.4" />
+          </label>
+          <div class="button-row">
+            <button id="newLlmPresetButton" class="secondary" type="button">New</button>
+            <button id="saveLlmPresetButton" type="button">Save</button>
+            <button id="deleteLlmPresetButton" class="secondary" type="button">Delete</button>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <script type="module" src="./sidepanel.js"></script>
+  </body>
+</html>

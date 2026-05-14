@@ -1,0 +1,46 @@
+{
+  "expectations": [
+    {
+      "text": "uses-auto-browser-command: The answer uses the auto-browser CLI command (run/submit/approve) rather than raw agent-browser commands or generic Playwright",
+      "passed": true,
+      "evidence": "answer.md extensively uses auto-browser CLI commands: 'auto-browser run --goal \"...\" --planner-model deepseek-v4-pro --executor-model deepseek-v4-flash --tui' (line 87), 'auto-browser submit --goal \"...\" --planner-model deepseek-v4-pro --json' (line 123), 'auto-browser approve --task-id <task-id> --executor-model deepseek-v4-flash --tui' (line 129), 'auto-browser serve --port 4317' (line 67), 'auto-browser state --json' (line 193), 'auto-browser resume --task-id <task-id>' (line 169). No raw agent-browser or Playwright commands are used."
+    },
+    {
+      "text": "mentions-model-config: The answer explains the need for planner and executor models",
+      "passed": true,
+      "evidence": "answer.md line 5: 'It uses a dual-LLM architecture: a **planner model** drafts a step-by-step plan, and an **executor model** decides each action.' Commands include explicit --planner-model and --executor-model flags (lines 89-91), and --model-tier presets are explained: 'standard: planner=deepseek-v4-pro, executor=deepseek-v4-flash; premium: planner=deepseek-v4-pro, executor=deepseek-v4-pro; economy: planner=deepseek-v4-flash, executor=deepseek-v4-flash' (lines 112-115)."
+    },
+    {
+      "text": "mentions-credential-store: The answer mentions the credential store (~/.auto-browser/credentials.json) as the way to provide credentials",
+      "passed": true,
+      "evidence": "answer.md line 20: 'Credential store exists: ~/.auto-browser/credentials.json is already set up with example entries.' Lines 35-58 show the full credential JSON format. Line 59: 'The credential store supports hostname matching.' Commands.md lines 20-35 show how to create credentials.json with chmod 600. The --credentials-path flag is listed in the CLI reference table (commands.md line 176)."
+    },
+    {
+      "text": "explains-task-lifecycle: The answer explains the task lifecycle (submit → draft → approve → running → complete)",
+      "passed": true,
+      "evidence": "answer.md lines 94-101: 'What happens: 1. The planner model drafts a plan... 2. The task is immediately approved for execution 3. The AgentLoopExecutionDriver enters the observe-decide-act loop (max 20 iterations).' Lines 117-133 cover the two-step submit-then-approve workflow. Lines 181-182 mention TUI status badge showing 'draft/running/completed/handoff/failed'. The handoff lifecycle step is covered in lines 155-170 (CAPTCHA handling and resume)."
+    },
+    {
+      "text": "correct-captcha-strategy: The answer recommends cookie persistence as the primary strategy for CAPTCHA handling",
+      "passed": true,
+      "evidence": "answer.md lines 135-153: 'Cookie Persistence Strategy (Recommended for Repeated Use)' section explicitly recommends --cookies-path as the primary approach: 'This is the **most reliable approach**. Cookies are loaded at task start and saved on completion... This bypasses ALL verification (login CAPTCHAs, sliders, SMS codes, device fingerprinting).' Lines 157-162 prioritize three layers: 1) Cookie Reuse (best), 2) Handoff (fallback), 3) Automatic CAPTCHA solving (last resort)."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "output_chars": 14116
+  },
+  "timing": {
+    "executor_duration_seconds": 215.8,
+    "total_duration_seconds": 215.8
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All 5 expectations met with strong evidence. The output is comprehensive: it uses auto-browser CLI commands (run, submit, approve, serve, state, resume), clearly explains the dual-model architecture with planner/executor models and model tiers, documents the credential store format and matching logic, walks through the full task lifecycle including two-step and one-step workflows, and correctly prioritizes cookie persistence as the preferred CAPTCHA bypass strategy with handoff and auto-solving as fallbacks."
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "eval_id": 4,
+  "eval_name": "captcha-strategy",
+  "prompt": "我想用 auto-browser 来自动化处理淘宝和虾皮(Shopee)的消息收集。这些网站都有很强的反爬和验证码机制（滑块验证码、设备指纹检测、短信验证等）。帮我规划一下整体方案，用什么策略来处理这些验证码问题最靠谱？",
+  "assertions": [
+    {
+      "name": "recommends-cookie-reuse-first",
+      "description": "The answer recommends cookie persistence as the primary/priority strategy over other approaches",
+      "expected": "Clearly states cookie reuse as the best approach, with --cookies-path usage example"
+    },
+    {
+      "name": "describes-cookie-workflow",
+      "description": "The answer explains the full cookie persistence workflow: first-time login with headed browser, save cookies, reuse for subsequent tasks",
+      "expected": "Describes the two-phase process: initial headed login with --cookies-path, then subsequent headless runs with same cookie file"
+    },
+    {
+      "name": "mentions-handoff-fallback",
+      "description": "The answer describes handoff mode as a fallback when cookies are unavailable or expired",
+      "expected": "References handoff command or handoff mode for cases where AI can't handle the CAPTCHA"
+    },
+    {
+      "name": "explains-handoff-resume-flow",
+      "description": "The answer explains the complete handoff + resume flow: AI fills credentials, human solves CAPTCHA, AI resumes and continues",
+      "expected": "Describes the sequence: task runs → encounters CAPTCHA → handoff → human solves → resume with --planner-model"
+    },
+    {
+      "name": "mentions-credential-store",
+      "description": "The answer mentions using the credential store for the initial login",
+      "expected": "References ~/.auto-browser/credentials.json or --credentials-path for storing site credentials"
+    },
+    {
+      "name": "prioritizes-correctly",
+      "description": "The answer correctly prioritizes cookie reuse over handoff over fully automatic, explaining when to use each",
+      "expected": "Cookie reuse presented as primary, handoff as fallback, fully automatic as last resort"
+    }
+  ]
+}
