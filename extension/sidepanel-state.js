@@ -120,6 +120,57 @@ export function filterTaskEvents(events, taskId) {
   return (events ?? []).filter((event) => event.taskId === taskId).slice(-40).reverse();
 }
 
+export function getPlanSignal(task, events) {
+  if (!task?.id || !task.planDraft) {
+    return null;
+  }
+
+  const event = getEventsForTask(events, task.id)
+    .filter((item) => item.type === 'task.drafted' || item.type === 'task.replanned')
+    .sort((left, right) => getTimestamp(right.createdAt) - getTimestamp(left.createdAt))[0];
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    taskId: task.id,
+    eventType: event.type,
+    badge: event.type === 'task.replanned' ? 'Replanned' : 'Draft',
+    goal: task.goal || '',
+    summary: task.planDraft.summary || '',
+    steps: Array.isArray(task.planDraft.steps) ? task.planDraft.steps : [],
+    actionable: task.status === 'draft' || task.status === 'ready',
+  };
+}
+
+export function getModelHandoffSignal(task, events) {
+  if (!task?.id || !['running', 'handoff', 'blocked'].includes(task.status)) {
+    return null;
+  }
+
+  const taskEvents = getEventsForTask(events, task.id);
+  const boundaryTimestamp = getLatestExecutionBoundaryTimestamp(taskEvents);
+  const handoffEvents = taskEvents
+    .map((event) => toModelHandoffCandidate(event, task))
+    .filter(Boolean)
+    .filter((candidate) => getTimestamp(candidate.createdAt) >= boundaryTimestamp)
+    .filter((candidate) => !isNonModelHandoffReason(candidate.reason))
+    .sort((left, right) => getTimestamp(right.createdAt) - getTimestamp(left.createdAt));
+
+  const signal = handoffEvents[0];
+  if (!signal) {
+    return null;
+  }
+
+  return {
+    taskId: task.id,
+    title: isCaptchaReason(signal.reason) ? '需要验证码操作' : '需要人工操作',
+    reason: signal.reason,
+    sourceEventType: signal.type,
+  };
+}
+
 export function formatPageContext(tab) {
   if (!tab) {
     return 'No active browser tab';
@@ -128,6 +179,83 @@ export function formatPageContext(tab) {
   const title = tab.title || 'Untitled';
   const url = tab.url || '';
   return `${title} • ${url}`;
+}
+
+function getEventsForTask(events, taskId) {
+  if (!taskId) {
+    return [];
+  }
+  return (events ?? []).filter((event) => event?.taskId === taskId);
+}
+
+function toModelHandoffCandidate(event, task) {
+  if (!event) {
+    return null;
+  }
+
+  if (
+    event.summary?.action === 'handoff' &&
+    ['task.execution.action_started', 'task.execution.completed', 'task.execution.iteration.completed'].includes(event.type)
+  ) {
+    return {
+      type: event.type,
+      createdAt: event.createdAt,
+      reason: String(event.summary.reason || event.data?.message || task.resultSummary || '').trim(),
+    };
+  }
+
+  if (event.type === 'task.execution.llm.completion') {
+    const parsed = parseExecutorJson(String(event.data?.content ?? ''));
+    if (parsed?.action === 'handoff') {
+      return {
+        type: event.type,
+        createdAt: event.createdAt,
+        reason: String(parsed.reason || event.data?.message || task.resultSummary || '').trim(),
+      };
+    }
+  }
+
+  return null;
+}
+
+function getLatestExecutionBoundaryTimestamp(events) {
+  const boundaryEvent = (events ?? [])
+    .filter((event) => event.type === 'task.running' || event.type === 'task.replanned')
+    .sort((left, right) => getTimestamp(right.createdAt) - getTimestamp(left.createdAt))[0];
+  return boundaryEvent ? getTimestamp(boundaryEvent.createdAt) : 0;
+}
+
+function parseExecutorJson(content) {
+  const text = content.trim();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return null;
+    }
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function isCaptchaReason(reason) {
+  return /captcha|verify|verification|验证|验证码|人机/i.test(reason);
+}
+
+function isNonModelHandoffReason(reason) {
+  const text = String(reason || '').trim();
+  if (!text || /^blocked$/i.test(text)) {
+    return true;
+  }
+  return /permission (required|denied)|exceed(?:ed|ing)|iteration budget|max iterations|visual-capable executor|canvas UI requires visual|task handed off to user/i.test(text);
 }
 
 export function createDefaultLlmPreset(plannerModel = '', executorModel = '') {

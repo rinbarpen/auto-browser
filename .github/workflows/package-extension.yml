@@ -1,0 +1,30 @@
+name: Package Extension
+
+on:
+  push:
+    tags:
+      - 'extension-v*'
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package extension
+        run: bash scripts/package-extension.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-browser-extension
+          path: dist/auto-browser-extension-*.zip
+          if-no-files-found: error
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/extension-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/auto-browser-extension-*.zip
+          generate_release_notes: false

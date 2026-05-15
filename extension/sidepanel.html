@@ -1,209 +1,197 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Auto Browser Operator</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
+    <title>Auto Browser</title>
     <link rel="stylesheet" href="./sidepanel.css" />
   </head>
   <body>
-    <div class="panel-shell">
-      <header class="topbar">
-        <div class="topbar-copy">
-          <div class="topbar-title-row">
-            <h1 id="conversationTitle">Persistent chat</h1>
-            <p id="pageContext" class="page-context">Loading browser context...</p>
-          </div>
+    <div class="app" id="appRoot">
+      <!-- Header -->
+      <header class="header">
+        <button class="btn-icon" id="historyToggle" type="button" aria-label="Conversation history" aria-pressed="false" title="History (Ctrl+H)">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h1 class="header-goal" id="headerGoal">Auto Browser</h1>
+        <div class="header-status" id="headerStatus">
+          <span class="status-dot" id="statusDot" aria-label="Task status indicator"></span>
+          <span class="status-label" id="statusLabel">Idle</span>
         </div>
-
-        <div class="toolbar-actions">
-          <button
-            id="llmSettingsButton"
-            class="icon-button"
-            type="button"
-            aria-label="Open LLM settings"
-            aria-controls="llmSettingsPanel"
-            aria-expanded="false"
-            aria-keyshortcuts="Alt+L"
-            title="LLM settings (Alt+L)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3v3M12 18v3M4.2 7.5l2.6 1.5M17.2 15l2.6 1.5M4.2 16.5 6.8 15M17.2 9l2.6-1.5M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z" />
-            </svg>
-          </button>
-          <button
-            id="menuToggleButton"
-            class="icon-button"
-            type="button"
-            aria-label="Open menu"
-            aria-controls="overlayPanel"
-            aria-expanded="false"
-            aria-keyshortcuts="Alt+M"
-            title="Open menu (Alt+M)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 7h14M5 12h14M5 17h14" />
-            </svg>
-          </button>
-        </div>
+        <button class="btn-icon" id="configToggle" type="button" aria-label="Open settings" title="Settings (Ctrl+,)">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="m19.6 8.2-.7-1.1-2.6.4a3.9 3.9 0 0 0-.7-.4l-.6-2.6-1.2-.2a12 12 0 0 0-2.6 0L10 7.1a4.2 4.2 0 0 0-.7.4l-2.6-.4-.7 1.1 1.9 1.8c-.1.3-.1.7-.1 1s0 .7.1 1l-1.9 1.8.7 1.1 2.6-.4c.2.2.5.3.7.4l.6 2.6 1.2.2c.9.2 1.8.2 2.6 0l1-2.6c.2-.1.5-.2.7-.4l2.6.4.7-1.1-1.9-1.8c.1-.3.1-.7.1-1s0-.7-.1-1l1.9-1.8Z"/></svg>
+        </button>
       </header>
 
-      <main class="main-column">
-        <div id="messageThread" class="message-thread" aria-live="polite"></div>
+      <!-- Error Banner -->
+      <div class="error-banner" id="errorBanner" hidden aria-live="assertive">
+        <span class="error-icon">!</span>
+        <span class="error-message" id="errorMessage"></span>
+      </div>
 
-        <section
-          id="timelineStrip"
-          class="timeline-strip"
-          tabindex="0"
-          aria-label="Task timeline"
-          aria-keyshortcuts="Alt+T"
-          title="Task timeline (Alt+T)"
-        ></section>
-
-        <section class="composer-shell">
-          <label class="field composer">
-            <textarea
-              id="goalInput"
-              rows="3"
-              placeholder="Tell Auto Browser what to do next..."
-              aria-keyshortcuts="Alt+I Control+Enter Meta+Enter"
-              title="Message input (Alt+I, Ctrl+Enter or Cmd+Enter to send)"
-            ></textarea>
-          </label>
-          <div class="button-row composer-actions">
-            <button id="sendButton" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 11.5 19.5 4 15 20l-3.8-5.1L4 11.5Z" />
-              </svg>
-              <span>Send</span>
-            </button>
+      <!-- Main Content -->
+      <main class="main">
+        <div class="prompt-stack" id="promptStack">
+          <!-- Plan review -->
+          <div class="plan-review" id="planReview" hidden>
+            <div class="plan-review-header">
+              <h2>Review Plan</h2>
+              <span class="plan-review-badge" id="planBadge">Draft</span>
+            </div>
+            <p class="plan-review-summary" id="planSummary"></p>
+            <ol class="plan-review-steps" id="planSteps" role="list"></ol>
+            <div class="plan-review-actions" id="planActions">
+              <button class="btn btn-primary" id="planApprove" type="button">Approve and Run</button>
+              <button class="btn btn-secondary" id="planCancel" type="button">Cancel</button>
+            </div>
           </div>
-        </section>
+
+          <!-- Handoff Banner -->
+          <section class="handoff-banner" id="handoffBanner" hidden aria-live="assertive">
+            <div class="handoff-icon">&#9888;</div>
+            <div class="handoff-body">
+              <strong class="handoff-title" id="handoffTitle">需要人工操作</strong>
+              <p class="handoff-message" id="handoffMessage">验证码或安全验证需要您手动处理。</p>
+              <div class="handoff-actions">
+                <button class="btn btn-primary" id="handoffOpenTab" type="button">打开自动化标签页</button>
+                <button class="btn" id="handoffResume" type="button">继续执行</button>
+                <button class="btn btn-secondary" id="handoffCancel" type="button">放弃</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Idle state -->
+        <div class="idle-view" id="idleView">
+          <div class="idle-graphic">
+            <svg viewBox="0 0 64 64" aria-hidden="true" width="48" height="48">
+              <rect x="8" y="12" width="48" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+              <rect x="14" y="18" width="36" height="24" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="32" y1="6" x2="32" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="20" y1="4" x2="20" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <p class="idle-text">输入目标，开始自动化</p>
+        </div>
+
+        <!-- Plan detail in main content -->
+        <div class="plan-detail" id="planDetail" hidden>
+          <h2>执行计划</h2>
+          <p class="plan-detail-goal" id="planDetailGoal"></p>
+          <p class="plan-detail-summary" id="planDetailSummary"></p>
+          <ol class="plan-detail-steps" id="planDetailSteps" role="list"></ol>
+        </div>
+
+        <!-- Execution timeline -->
+        <div class="timeline-view" id="timelineView" hidden>
+          <div class="timeline-header">
+            <h2 class="timeline-title">执行记录</h2>
+            <span class="timeline-step" id="currentStep" aria-live="polite"></span>
+          </div>
+          <ul class="timeline-list" id="timelineList" role="list"></ul>
+        </div>
+
+        <!-- Result summary -->
+        <div class="result-summary" id="resultSummary" hidden>
+          <div class="result-summary-header">
+            <span class="result-summary-icon">&#10003;</span>
+            <strong>Completed</strong>
+          </div>
+          <p class="result-summary-text" id="resultSummaryText"></p>
+        </div>
+
+        <!-- History list -->
+        <div class="history-view" id="historyView" hidden>
+          <div class="history-list-header">
+            <h2>Conversations</h2>
+            <button class="btn btn-sm" id="newConversationInHistory" type="button">New</button>
+          </div>
+          <p class="history-empty" id="historyEmpty">No conversations yet.</p>
+          <ul class="history-list" id="historyList" role="list"></ul>
+        </div>
+
+        <!-- History detail -->
+        <div class="history-detail-view" id="historyDetailView" hidden>
+          <button class="btn btn-sm" id="historyBack" type="button">← Back</button>
+          <h2 class="history-detail-title" id="historyDetailTitle"></h2>
+          <div class="history-messages" id="historyMessages"></div>
+        </div>
       </main>
 
-      <button id="overlayBackdrop" class="overlay-backdrop" type="button" aria-label="Close open panel" hidden></button>
+      <!-- Composer -->
+      <footer class="composer">
+        <div class="composer-row">
+          <input
+            type="text"
+            id="goalInput"
+            class="composer-input"
+            placeholder="描述你想自动化的任务... (Ctrl+Enter 发送, Ctrl+, 设置)"
+            autocomplete="off"
+            aria-label="Task goal"
+          />
+          <button class="btn btn-primary composer-send" id="sendButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M4 11.5 19.5 4 15 20l-3.8-5.1L4 11.5Z"/></svg>
+          </button>
+        </div>
+      </footer>
 
-      <aside id="overlayPanel" class="overlay-panel" aria-hidden="true" aria-labelledby="overlayTitle">
-        <div class="overlay-header">
-          <div>
-            <h2 id="overlayTitle">History</h2>
-          </div>
-          <button id="overlayCloseButton" class="icon-button" type="button" aria-label="Close panel">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
+      <!-- Config Panel (slide in from right) -->
+      <aside class="config-panel" id="configPanel" aria-hidden="true">
+        <div class="config-header">
+          <h2>配置</h2>
+          <button class="btn-icon" id="configClose" type="button" aria-label="Close config">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M6 6l12 12M18 6 6 18"/></svg>
           </button>
         </div>
 
-        <nav id="menuNav" class="menu-nav" aria-label="Menu views">
-          <button class="menu-nav-button" type="button" data-menu-view="history" aria-keyshortcuts="Alt+1">History</button>
-          <button class="menu-nav-button" type="button" data-menu-view="run" aria-keyshortcuts="Alt+2">Run</button>
-          <button class="menu-nav-button" type="button" data-menu-view="details" aria-keyshortcuts="Alt+3 Alt+4">Details</button>
-        </nav>
+        <div class="config-body">
+          <section class="config-section">
+            <h3>凭据管理</h3>
+            <p class="config-hint">存储网站登录凭据，AI 自动填充。</p>
+            <label class="field">
+              <span>凭据 JSON</span>
+              <textarea id="credsEditor" rows="6" class="code-input" spellcheck="false"></textarea>
+            </label>
+            <div class="field-row">
+              <button class="btn btn-secondary btn-sm" id="credsLoad" type="button">加载文件</button>
+              <button class="btn btn-secondary btn-sm" id="credsSave" type="button">保存</button>
+            </div>
+          </section>
 
-        <section id="historyView" class="overlay-view" aria-hidden="true">
-          <div class="drawer-actions">
-            <button id="newConversationButton" class="secondary wide" type="button">New conversation</button>
-          </div>
-          <ul id="conversationList" class="conversation-list"></ul>
-        </section>
+          <section class="config-section">
+            <h3>Cookie 管理</h3>
+            <p class="config-hint">持久化 Cookie 会话，绕过登录验证码。</p>
+            <label class="field">
+              <span>Cookie 文件路径</span>
+              <input type="text" id="cookiePath" placeholder="~/.auto-browser/cookies.json" />
+            </label>
+          </section>
 
-        <section id="runView" class="overlay-view" aria-hidden="true">
-          <div class="session-copy">
-            <h3 id="taskTitle">No active session</h3>
-            <p id="taskSummary">Send a message to create or continue an extension conversation.</p>
-          </div>
-          <div class="button-row session-actions">
-            <button id="permissionButton" class="secondary" type="button">Grant site access</button>
-            <button id="resumeButton" type="button">Resume</button>
-            <button id="handoffButton" class="secondary" type="button">Handoff</button>
-            <button id="refreshButton" class="secondary" type="button">Refresh</button>
-          </div>
-        </section>
-
-        <section id="detailsView" class="overlay-view" aria-hidden="true">
-          <div class="details-block">
-            <span class="section-label">Conversation</span>
-            <p id="conversationMeta" class="meta-line">Select a conversation or start a new one.</p>
-          </div>
-        </section>
-      </aside>
-
-      <aside id="llmSettingsPanel" class="overlay-panel llm-settings-panel" aria-hidden="true" aria-labelledby="llmSettingsTitle">
-        <div class="overlay-header">
-          <div>
-            <h2 id="llmSettingsTitle">LLM settings</h2>
-          </div>
-          <button id="llmSettingsCloseButton" class="icon-button" type="button" aria-label="Close LLM settings">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
+          <section class="config-section">
+            <h3>模型配置</h3>
+            <label class="field">
+              <span>模型预设</span>
+              <select id="modelTier">
+                <option value="standard">Standard</option>
+                <option value="premium">Premium</option>
+                <option value="economy">Economy</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <label class="field" id="customPlannerField" hidden>
+              <span>Planner Model</span>
+              <input type="text" id="plannerModel" placeholder="deepseek-v4-pro" />
+            </label>
+            <label class="field" id="customExecutorField" hidden>
+              <span>Executor Model</span>
+              <input type="text" id="executorModel" placeholder="deepseek-v4-flash" />
+            </label>
+          </section>
         </div>
-
-        <section class="overlay-view active" aria-hidden="false">
-          <label class="field">
-            <span>Preset</span>
-            <select id="llmPresetSelect"></select>
-          </label>
-          <label class="field">
-            <span>Preset name</span>
-            <input id="llmPresetNameInput" type="text" placeholder="Default" />
-          </label>
-          <label class="field">
-            <span>Provider preset</span>
-            <select id="providerPresetSelect"></select>
-          </label>
-          <label class="field">
-            <span>Provider name</span>
-            <input id="providerPresetNameInput" type="text" placeholder="Local LLM router" />
-          </label>
-          <label class="field">
-            <span>Provider</span>
-            <input id="providerInput" type="text" placeholder="llm-router" />
-          </label>
-          <label class="field">
-            <span>Base URL</span>
-            <input id="providerBaseUrlInput" type="text" placeholder="http://127.0.0.1:18000/v1" />
-          </label>
-          <label class="field">
-            <span>API key</span>
-            <input id="providerApiKeyInput" type="password" placeholder="Optional" />
-          </label>
-          <div class="button-row">
-            <button id="newProviderPresetButton" class="secondary" type="button">New provider</button>
-            <button id="deleteProviderPresetButton" class="secondary" type="button">Delete provider</button>
-          </div>
-          <label class="field">
-            <span>Planner provider</span>
-            <select id="plannerProviderPresetSelect"></select>
-          </label>
-          <label class="field">
-            <span>Planner model</span>
-            <input id="plannerModelInput" type="text" placeholder="openai/gpt-5.4" />
-          </label>
-          <label class="field">
-            <span>Executor provider</span>
-            <select id="executorProviderPresetSelect"></select>
-          </label>
-          <label class="field">
-            <span>Executor model</span>
-            <input id="executorModelInput" type="text" placeholder="openai/gpt-5.4" />
-          </label>
-          <div class="button-row">
-            <button id="newLlmPresetButton" class="secondary" type="button">New</button>
-            <button id="saveLlmPresetButton" type="button">Save</button>
-            <button id="deleteLlmPresetButton" class="secondary" type="button">Delete</button>
-          </div>
-        </section>
       </aside>
     </div>
+
+    <div class="overlay-backdrop" id="overlayBackdrop" hidden></div>
 
     <script type="module" src="./sidepanel.js"></script>
   </body>

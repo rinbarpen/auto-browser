@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Auto Browser Sidepanel",
-  "version": "0.1.0",
-  "description": "Chat-style sidepanel for active Auto Browser tasks.",
+  "name": "Auto Browser",
+  "version": "0.2.0",
+  "description": "AI-powered browser automation sidebar. Submit tasks, handle CAPTCHA verification, and resume execution — all from the side panel.",
   "permissions": ["sidePanel", "storage", "tabs", "activeTab", "scripting"],
   "host_permissions": ["http://127.0.0.1:4317/*", "http://localhost:4317/*"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
@@ -15,5 +15,13 @@
   },
   "action": {
     "default_title": "Open Auto Browser"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+A"
+      },
+      "description": "Open Auto Browser sidebar"
+    }
   }
 }

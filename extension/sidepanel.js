@@ -1,884 +1,889 @@
 import {
-  buildChatMessages,
-  filterTaskEvents,
-  formatPageContext,
-  getConversationTitle,
-  getActiveLlmPreset,
-  normalizeLlmPreferences,
-  resolveInitialConversationId,
-  selectCurrentConversation,
-  selectCurrentTask,
-  selectNextConversationIdAfterDelete,
   sortConversationsByRecent,
+  getConversationTitle,
+  buildChatMessages,
+  getPlanSignal,
+  getModelHandoffSignal,
 } from './sidepanel-state.js';
 
-const API_BASE = 'http://127.0.0.1:4317/api';
-const STORAGE_KEY = 'sidepanelPreferences';
-const DEFAULT_PREFERENCES = {
-  providerPresets: [],
-  llmPresets: [],
-  activeLlmPresetId: null,
-  selectedConversationId: null,
+// ── State ──
+const API = 'http://127.0.0.1:4317/api';
+const STORE_KEY = 'autoBrowserSidebar';
+
+let state = {
+  conversations: [],
+  tasks: [],
+  events: [],
+  activeTask: null,
+  activeConversation: null,
+  // Extension session from background.js
+  extSession: null,
+  extConversationId: null,
+  runtimeConfig: null,
+  // Session ownership — used to filter stale server state
+  sessionTaskId: null,
+  // History view state
+  viewMode: 'current',
+  selectedHistoryConversationId: null,
+  // UI state
+  configOpen: false,
+  preferences: {
+    modelTier: 'standard',
+    plannerModel: '',
+    executorModel: '',
+    cookiesPath: '',
+    credentials: null,
+    credentialsPath: '',
+  },
 };
 
+// ── DOM ──
+const $ = (id) => document.getElementById(id);
 const els = {
-  pageContext: document.getElementById('pageContext'),
-  conversationTitle: document.getElementById('conversationTitle'),
-  conversationMeta: document.getElementById('conversationMeta'),
-  goalInput: document.getElementById('goalInput'),
-  plannerModelInput: document.getElementById('plannerModelInput'),
-  executorModelInput: document.getElementById('executorModelInput'),
-  providerPresetSelect: document.getElementById('providerPresetSelect'),
-  providerPresetNameInput: document.getElementById('providerPresetNameInput'),
-  providerInput: document.getElementById('providerInput'),
-  providerBaseUrlInput: document.getElementById('providerBaseUrlInput'),
-  providerApiKeyInput: document.getElementById('providerApiKeyInput'),
-  plannerProviderPresetSelect: document.getElementById('plannerProviderPresetSelect'),
-  executorProviderPresetSelect: document.getElementById('executorProviderPresetSelect'),
-  newProviderPresetButton: document.getElementById('newProviderPresetButton'),
-  deleteProviderPresetButton: document.getElementById('deleteProviderPresetButton'),
-  llmPresetSelect: document.getElementById('llmPresetSelect'),
-  llmPresetNameInput: document.getElementById('llmPresetNameInput'),
-  newLlmPresetButton: document.getElementById('newLlmPresetButton'),
-  saveLlmPresetButton: document.getElementById('saveLlmPresetButton'),
-  deleteLlmPresetButton: document.getElementById('deleteLlmPresetButton'),
-  messageThread: document.getElementById('messageThread'),
-  taskTitle: document.getElementById('taskTitle'),
-  taskSummary: document.getElementById('taskSummary'),
-  timelineStrip: document.getElementById('timelineStrip'),
-  sendButton: document.getElementById('sendButton'),
-  refreshButton: document.getElementById('refreshButton'),
-  permissionButton: document.getElementById('permissionButton'),
-  resumeButton: document.getElementById('resumeButton'),
-  handoffButton: document.getElementById('handoffButton'),
-  shell: document.querySelector('.panel-shell'),
-  llmSettingsButton: document.getElementById('llmSettingsButton'),
-  llmSettingsPanel: document.getElementById('llmSettingsPanel'),
-  llmSettingsCloseButton: document.getElementById('llmSettingsCloseButton'),
-  menuToggleButton: document.getElementById('menuToggleButton'),
-  menuNav: document.getElementById('menuNav'),
-  overlayBackdrop: document.getElementById('overlayBackdrop'),
-  overlayPanel: document.getElementById('overlayPanel'),
-  overlayTitle: document.getElementById('overlayTitle'),
-  overlayCloseButton: document.getElementById('overlayCloseButton'),
-  historyView: document.getElementById('historyView'),
-  runView: document.getElementById('runView'),
-  detailsView: document.getElementById('detailsView'),
-  newConversationButton: document.getElementById('newConversationButton'),
-  conversationList: document.getElementById('conversationList'),
+  headerGoal: $('headerGoal'),
+  statusDot: $('statusDot'),
+  statusLabel: $('statusLabel'),
+  promptStack: $('promptStack'),
+  handoffBanner: $('handoffBanner'),
+  handoffTitle: $('handoffTitle'),
+  handoffMessage: $('handoffMessage'),
+  handoffOpenTab: $('handoffOpenTab'),
+  handoffResume: $('handoffResume'),
+  handoffCancel: $('handoffCancel'),
+  idleView: $('idleView'),
+  timelineView: $('timelineView'),
+  timelineList: $('timelineList'),
+  currentStep: $('currentStep'),
+  goalInput: $('goalInput'),
+  sendButton: $('sendButton'),
+  configToggle: $('configToggle'),
+  configPanel: $('configPanel'),
+  configClose: $('configClose'),
+  overlayBackdrop: $('overlayBackdrop'),
+  // Plan review
+  planReview: $('planReview'),
+  planBadge: $('planBadge'),
+  planSummary: $('planSummary'),
+  planSteps: $('planSteps'),
+  planActions: $('planActions'),
+  planApprove: $('planApprove'),
+  planCancel: $('planCancel'),
+  // Plan detail (main content)
+  planDetail: $('planDetail'),
+  planDetailGoal: $('planDetailGoal'),
+  planDetailSummary: $('planDetailSummary'),
+  planDetailSteps: $('planDetailSteps'),
+  // Result summary
+  resultSummary: $('resultSummary'),
+  resultSummaryText: $('resultSummaryText'),
+  // History
+  historyToggle: $('historyToggle'),
+  historyView: $('historyView'),
+  historyList: $('historyList'),
+  historyEmpty: $('historyEmpty'),
+  historyDetailView: $('historyDetailView'),
+  historyDetailTitle: $('historyDetailTitle'),
+  historyMessages: $('historyMessages'),
+  historyBack: $('historyBack'),
+  newConversationInHistory: $('newConversationInHistory'),
+  // Config fields
+  credsEditor: $('credsEditor'),
+  credsLoad: $('credsLoad'),
+  credsSave: $('credsSave'),
+  cookiePath: $('cookiePath'),
+  modelTier: $('modelTier'),
+  plannerModel: $('plannerModel'),
+  executorModel: $('executorModel'),
+  customPlannerField: $('customPlannerField'),
+  customExecutorField: $('customExecutorField'),
 };
 
-let runtimeConfig = null;
-let currentSession = null;
-let currentConversation = null;
-let currentTask = null;
-let currentState = { conversations: [], tasks: [], events: [] };
-let transientNotice = null;
-let preferences = { ...DEFAULT_PREFERENCES };
-let menuOpen = false;
-let llmSettingsOpen = false;
-let activeMenuView = 'history';
-
-initialize().catch(renderError);
+// ── Init ──
+initialize();
 
 async function initialize() {
-  preferences = await loadPreferences();
-  applyStoredUiState();
-  await refreshPageContext();
+  await loadPreferences();
+  applyPrefsToUI();
   await loadRuntimeConfig();
-  await refreshAll({ includePageContext: false, initializeSelection: true });
-  setInterval(() => {
-    refreshAll({ includePageContext: false }).catch(() => undefined);
-  }, 1500);
+  els.goalInput.focus();
+  bindEvents();
+  await refresh();
+  setInterval(refresh, 1500);
 }
 
-els.sendButton.addEventListener('click', () => {
-  startTask().catch(renderError);
-});
-els.goalInput.addEventListener('keydown', (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-    event.preventDefault();
-    startTask().catch(renderError);
-  }
-});
-document.addEventListener('keydown', handleGlobalShortcut);
-els.refreshButton.addEventListener('click', () => {
-  refreshAll().catch(renderError);
-});
-els.permissionButton.addEventListener('click', () => {
-  if (!currentSession?.origin) return;
-  chrome.runtime.sendMessage({ type: 'request_permission', origin: currentSession.origin }, handleBackgroundResponse);
-});
-els.resumeButton.addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'resume_extension' }, handleBackgroundResponse);
-});
-els.handoffButton.addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'handoff_task' }, handleBackgroundResponse);
-});
-els.llmSettingsButton.addEventListener('click', () => {
-  toggleLlmSettingsPanel();
-});
-els.menuToggleButton.addEventListener('click', () => {
-  toggleMenu();
-});
-els.menuNav.addEventListener('click', (event) => {
-  const button = event.target instanceof Element ? event.target.closest('[data-menu-view]') : null;
-  if (!button) {
-    return;
-  }
-  setActiveMenuView(button.dataset.menuView);
-});
-els.overlayCloseButton.addEventListener('click', closeOverlay);
-els.overlayBackdrop.addEventListener('click', closeOverlay);
-els.llmSettingsCloseButton.addEventListener('click', closeOverlay);
-els.newConversationButton.addEventListener('click', () => {
-  createConversation().catch(renderError);
-});
-els.llmPresetSelect.addEventListener('change', () => {
-  llmSettingsOpen = true;
-  activateLlmPreset(els.llmPresetSelect.value).catch(renderError);
-});
-els.newLlmPresetButton.addEventListener('click', () => {
-  llmSettingsOpen = true;
-  createLlmPreset().catch(renderError);
-});
-els.saveLlmPresetButton.addEventListener('click', () => {
-  llmSettingsOpen = true;
-  saveActiveLlmPreset().catch(renderError);
-});
-els.deleteLlmPresetButton.addEventListener('click', () => {
-  llmSettingsOpen = true;
-  deleteActiveLlmPreset().catch(renderError);
-});
-els.providerPresetSelect.addEventListener('change', renderLlmSettings);
-els.newProviderPresetButton.addEventListener('click', () => {
-  llmSettingsOpen = true;
-  createProviderPreset().catch(renderError);
-});
-els.deleteProviderPresetButton.addEventListener('click', () => {
-  llmSettingsOpen = true;
-  deleteSelectedProviderPreset().catch(renderError);
-});
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  const msgEl = document.getElementById('errorMessage');
+  if (!el || !msgEl) return;
+  msgEl.textContent = msg;
+  el.hidden = false;
+  el.classList.add('show');
+  setTimeout(() => { el.hidden = true; el.classList.remove('show'); }, 8000);
+}
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type !== 'sidepanel_event') {
-    return;
-  }
+function hideError() {
+  const el = document.getElementById('errorBanner');
+  if (el) { el.hidden = true; el.classList.remove('show'); }
+}
 
-  if (message.payload?.type === 'session_updated') {
-    currentSession = message.payload.session;
-    syncDerivedState();
-    render();
-    return;
-  }
-
-  if (message.payload?.type === 'permission_required') {
-    currentSession = { ...(currentSession || {}), origin: message.payload.origin, status: 'blocked' };
-    syncDerivedState();
-    render();
-  }
-});
-
-async function startTask() {
-  const goal = els.goalInput.value.trim();
-  if (!goal) {
-    throw new Error('Message is required.');
-  }
-
-  const activePreset = getActiveLlmPreset(preferences);
-  const plannerModel = activePreset.roles.planner.model.trim();
-  const executorModel = activePreset.roles.executor.model.trim();
-  if (!plannerModel || !executorModel) {
-    throw new Error('Planner and executor models are required.');
-  }
-
-  transientNotice = null;
-  renderMessages();
-
-  let selectedConversationId = preferences.selectedConversationId;
-  if (!selectedConversationId) {
-    const createdConversation = await fetchJson('/conversations', { method: 'POST' });
-    selectedConversationId = createdConversation.id;
-    await savePreferences({ selectedConversationId });
-  }
-
-  const response = await chrome.runtime.sendMessage({
-    type: 'start_task',
-    payload: {
-      goal,
-      plannerModel,
-      executorModel,
-      conversationId: selectedConversationId,
-    },
+function bindEvents() {
+  els.sendButton.addEventListener('click', submitGoal);
+  els.goalInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitGoal(); }
   });
+  // Dismiss error on any input
+  els.goalInput.addEventListener('input', hideError);
+  els.configToggle.addEventListener('click', toggleConfig);
+  els.configClose.addEventListener('click', closeConfig);
+  els.overlayBackdrop.addEventListener('click', closeConfig);
 
-  if (!response?.ok) {
-    throw new Error(response?.error || 'Failed to send message');
-  }
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    const mod = e.metaKey || e.ctrlKey;
+    // Escape — close config or unfocus
+    if (e.key === 'Escape') {
+      if (state.configOpen) { closeConfig(); return; }
+    }
+    // Ctrl+Enter / Cmd+Enter — send
+    if (e.key === 'Enter' && mod) { e.preventDefault(); submitGoal(); return; }
+    // Ctrl+, — toggle config
+    if (e.key === ',' && mod) { e.preventDefault(); e.stopPropagation(); toggleConfig(); return; }
+    // Ctrl+K or / — focus goal input
+    if ((e.key === 'k' && mod) || (e.key === '/' && !mod && document.activeElement !== els.goalInput && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT')) {
+      e.preventDefault();
+      els.goalInput.focus();
+      els.goalInput.select();
+      return;
+    }
+    // Ctrl+R — refresh
+    if (e.key === 'r' && mod) { e.preventDefault(); refresh(); return; }
+    // Ctrl+H — toggle history
+    if (e.key === 'h' && mod) { e.preventDefault(); toggleHistory(); return; }
+  });
+  els.handoffOpenTab.addEventListener('click', openAutomationTab);
+  els.handoffResume.addEventListener('click', handleHandoffResume);
+  els.handoffCancel.addEventListener('click', cancelTask);
+  // Plan review
+  els.planApprove.addEventListener('click', approvePlan);
+  els.planCancel.addEventListener('click', cancelPlan);
+  // History
+  els.historyToggle.addEventListener('click', toggleHistory);
+  els.historyBack.addEventListener('click', backToHistoryList);
+  els.newConversationInHistory.addEventListener('click', () => {
+    backToCurrentView();
+    els.goalInput.focus();
+  });
+  // Config
+  els.credsSave.addEventListener('click', saveCredentials);
+  els.credsLoad.addEventListener('click', loadCredentialsFile);
+  els.cookiePath.addEventListener('change', () => savePreferences());
+  els.modelTier.addEventListener('change', onModelTierChange);
+  els.plannerModel.addEventListener('change', () => savePreferences());
+  els.executorModel.addEventListener('change', () => savePreferences());
 
-  els.goalInput.value = '';
-  transientNotice = null;
-  currentSession = response.session ?? currentSession;
-  if (response.session?.conversationId && response.session.conversationId !== preferences.selectedConversationId) {
-    await savePreferences({ selectedConversationId: response.session.conversationId });
-  }
-  await refreshAll({ includePageContext: false });
+  // Listen for background.js session updates
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type !== 'sidepanel_event') return;
+    if (msg.payload?.type === 'session_updated') {
+      state.extSession = msg.payload.session;
+      state.extConversationId = msg.payload.session?.conversationId || null;
+      render();
+    }
+    if (msg.payload?.type === 'permission_required') {
+      state.extSession = { ...(state.extSession || {}), origin: msg.payload.origin, status: 'blocked' };
+      render();
+    }
+  });
 }
 
-async function refreshPageContext() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  els.pageContext.textContent = formatPageContext(tab);
+// ── API ──
+async function apiFetch(path, init = {}) {
+  const res = await fetch(`${API}${path}`, {
+    ...init,
+    headers: { 'content-type': 'application/json', ...init.headers },
+  });
+  if (res.status === 204) return null;
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error?.problem || `HTTP ${res.status}`);
+  return body;
+}
+
+async function approvePlan() {
+  const task = state.activeTask;
+  if (!task) return;
+  els.planApprove.disabled = true;
+  els.planCancel.disabled = true;
+  try {
+    await apiFetch(`/tasks/${task.id}/run`, {
+      method: 'POST',
+      body: JSON.stringify({ executorModel: resolveExecutorModel() }),
+    });
+    state.sessionTaskId = task.id;
+    await savePreferences();
+    await refresh();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    els.planApprove.disabled = false;
+    els.planCancel.disabled = false;
+  }
+}
+
+async function cancelPlan() {
+  const task = state.activeTask;
+  if (!task) return;
+  els.planApprove.disabled = true;
+  els.planCancel.disabled = true;
+  try {
+    await apiFetch(`/tasks/${task.id}/cancel`, { method: 'POST' });
+    state.sessionTaskId = null;
+    await savePreferences();
+    await refresh();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    els.planApprove.disabled = false;
+    els.planCancel.disabled = false;
+  }
+}
+
+// ── Data ──
+async function refresh() {
+  try {
+    const [svcState, cfg] = await Promise.all([
+      apiFetch('/state'),
+      apiFetch('/runtime-config').catch(() => null),
+    ]);
+    state.conversations = svcState.conversations || [];
+    state.tasks = svcState.tasks || [];
+    state.events = svcState.events || [];
+    state.activeTask = svcState.activeTask || null;
+    if (cfg) state.runtimeConfig = cfg;
+    deriveActiveConversation();
+    // Clear session ownership when task reaches terminal state
+    if (state.activeTask && ['completed', 'failed', 'cancelled'].includes(state.activeTask.status)) {
+      if (state.sessionTaskId === state.activeTask.id) {
+        state.sessionTaskId = null;
+        savePreferences();
+      }
+    }
+    render();
+  } catch (e) {
+    // Service not available — show idle
+    render();
+  }
+}
+
+function deriveActiveConversation() {
+  const task = state.activeTask;
+  if (task?.conversationId) {
+    state.activeConversation = state.conversations.find(c => c.id === task.conversationId) || null;
+  }
+}
+
+// ── Task Actions ──
+async function submitGoal() {
+  const goal = els.goalInput.value.trim();
+  if (!goal) return;
+
+  const plannerModel = resolvePlannerModel();
+  const executorModel = resolveExecutorModel();
+  if (!plannerModel || !executorModel) {
+    showError('Planner and executor models are required. Check Settings (Ctrl+,).');
+    return;
+  }
+
+  els.sendButton.disabled = true;
+  try {
+    let task;
+
+    if (state.extSession?.conversationId) {
+      // Extension mode — delegate to background.js
+      const res = await chrome.runtime.sendMessage({
+        type: 'start_task',
+        payload: { goal, plannerModel, executorModel, conversationId: state.extConversationId },
+      });
+      if (!res?.ok) throw new Error(res?.error || 'Extension start failed');
+      state.extSession = res.session || state.extSession;
+      task = { id: res.session?.taskId };
+    } else {
+      // Service mode — create draft task, let user review plan before running
+      const conv = await apiFetch('/conversations', { method: 'POST' });
+      task = await apiFetch(`/conversations/${conv.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content: goal, plannerModel, browserConfig: buildBrowserConfig() }),
+      });
+      // Store task ownership — used to filter stale server state
+      state.sessionTaskId = task.id;
+      await savePreferences();
+      // DO NOT run yet — render() will show plan review
+    }
+
+    els.goalInput.value = '';
+    await refresh();
+  } catch (e) {
+    const msg = e.message || 'Unknown error';
+    if (msg.includes('model is required') || msg.includes('Planner model')) {
+      showError('No model configured. Set models in Settings (Ctrl+,) or check service configuration.');
+    } else if (msg.includes('LLM Router')) {
+      showError('AI model unavailable. Check model configuration in Settings.');
+    } else {
+      showError(msg);
+    }
+  } finally {
+    els.sendButton.disabled = false;
+  }
+}
+
+async function resumeTask() {
+  const task = state.activeTask;
+  if (!task) return;
+  try {
+    await apiFetch(`/tasks/${task.id}/resume`, {
+      method: 'POST',
+      body: JSON.stringify({
+        plannerModel: resolvePlannerModel(),
+      }),
+    });
+    // Re-approve
+    await apiFetch(`/tasks/${task.id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ executorModel: resolveExecutorModel() }),
+    });
+    await refresh();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+async function handleHandoffResume() {
+  if (isExtensionTask(state.activeTask)) {
+    await resumeExtensionTask();
+    return;
+  }
+  await resumeTask();
+}
+
+async function cancelTask() {
+  const task = state.activeTask;
+  if (!task) return;
+  try {
+    await apiFetch(`/tasks/${task.id}/cancel`, { method: 'POST' });
+    state.sessionTaskId = null;
+    await savePreferences();
+    await refresh();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+function isExtensionTask(task) {
+  return Boolean(task && (task.executionSource === 'extension' || state.extSession?.taskId === task.id));
+}
+
+function getLatestTaskUrl(taskEvents) {
+  const event = taskEvents.find((item) =>
+    item.summary?.url ||
+    item.data?.url ||
+    item.summary?.action === 'navigate'
+  );
+  return event?.summary?.url || event?.data?.url || null;
+}
+
+async function openAutomationTab() {
+  // Extension mode: focus the dedicated automation tab
+  if (state.extSession?.tabId) {
+    try {
+      await chrome.tabs.update(state.extSession.tabId, { active: true });
+      return;
+    } catch { /* fall through */ }
+  }
+  // Service mode: open the current task URL
+  const taskEvents = filterTaskEvents();
+  const url = getLatestTaskUrl(taskEvents);
+  if (url) {
+    const [tab] = await chrome.tabs.query({ url: url });
+    if (tab?.id) {
+      await chrome.tabs.update(tab.id, { active: true });
+    } else {
+      await chrome.tabs.create({ url, active: true });
+    }
+  }
+}
+
+async function resumeExtensionTask() {
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'resume_extension' });
+    if (!res?.ok) showError(res?.error || 'Resume failed');
+    await refresh();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+async function handoffExtensionTask() {
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'handoff_task' });
+    if (!res?.ok) showError(res?.error || 'Handoff failed');
+    await refresh();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+// ── Config ──
+function buildBrowserConfig() {
+  const cfg = { launchMode: 'auto' };
+  const cookiesPath = state.preferences.cookiesPath?.trim();
+  if (cookiesPath) cfg.cookiesPath = cookiesPath;
+  const credsPath = state.preferences.credentialsPath;
+  if (credsPath) cfg.credentialsPath = credsPath;
+  return cfg;
+}
+
+function resolvePlannerModel() {
+  return state.preferences.plannerModel || state.runtimeConfig?.plannerModel || 'deepseek-v4-pro';
+}
+
+function resolveExecutorModel() {
+  return state.preferences.executorModel || state.runtimeConfig?.executorModel || 'deepseek-v4-flash';
+}
+
+function onModelTierChange() {
+  const tier = els.modelTier.value;
+  const custom = tier === 'custom';
+  els.customPlannerField.hidden = !custom;
+  els.customExecutorField.hidden = !custom;
+  if (!custom) {
+    const tiers = {
+      standard: { planner: 'deepseek-v4-pro', executor: 'deepseek-v4-flash' },
+      premium: { planner: 'deepseek-v4-pro', executor: 'deepseek-v4-pro' },
+      economy: { planner: 'deepseek-v4-flash', executor: 'deepseek-v4-flash' },
+    };
+    const preset = tiers[tier];
+    if (preset) {
+      state.preferences.plannerModel = preset.planner;
+      state.preferences.executorModel = preset.executor;
+    }
+  }
+  savePreferences();
+}
+
+function toggleConfig() {
+  state.configOpen = !state.configOpen;
+  renderConfig();
+}
+
+function closeConfig() {
+  state.configOpen = false;
+  renderConfig();
+}
+
+// ── Credential Store ──
+function saveCredentials() {
+  try {
+    const text = els.credsEditor.value.trim();
+    if (!text) { state.preferences.credentials = null; }
+    else { JSON.parse(text); state.preferences.credentials = text; }
+    savePreferences();
+  } catch {
+    showError('Invalid JSON in credentials');
+  }
+}
+
+async function loadCredentialsFile() {
+  try {
+    // Try loading from the known path
+    const path = els.cookiePath.value?.trim()?.replace(/\/[^/]*$/, '') || '';
+    // Since we can't read files from extension, use a fetch or input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      JSON.parse(text); // validate
+      els.credsEditor.value = text;
+      state.preferences.credentials = text;
+      await savePreferences();
+    };
+    input.click();
+  } catch {
+    showError('Failed to load credentials file');
+  }
+}
+
+// ── Preferences ──
+async function loadPreferences() {
+  try {
+    const stored = await chrome.storage.local.get(STORE_KEY);
+    const data = stored?.[STORE_KEY];
+    if (data && typeof data === 'object') {
+      state.preferences = { ...state.preferences, ...(data.preferences || data) };
+      if (data.sessionTaskId) state.sessionTaskId = data.sessionTaskId;
+    }
+  } catch { /* ignore */ }
+}
+
+async function savePreferences() {
+  // Collect from UI
+  state.preferences.modelTier = els.modelTier.value;
+  if (els.modelTier.value === 'custom') {
+    state.preferences.plannerModel = els.plannerModel.value.trim();
+    state.preferences.executorModel = els.executorModel.value.trim();
+  }
+  state.preferences.cookiesPath = els.cookiePath.value.trim();
+
+  await chrome.storage.local.set({
+    [STORE_KEY]: { ...state.preferences, sessionTaskId: state.sessionTaskId },
+  });
+}
+
+function applyPrefsToUI() {
+  const p = state.preferences;
+  if (p.modelTier) els.modelTier.value = p.modelTier;
+  if (p.plannerModel) els.plannerModel.value = p.plannerModel;
+  if (p.executorModel) els.executorModel.value = p.executorModel;
+  if (p.cookiesPath) els.cookiePath.value = p.cookiesPath;
+  if (p.credentials) els.credsEditor.value = typeof p.credentials === 'string' ? p.credentials : JSON.stringify(p.credentials, null, 2);
+  onModelTierChange();
 }
 
 async function loadRuntimeConfig() {
-  runtimeConfig = await fetchJson('/runtime-config');
-  const activePreset = getActiveLlmPreset(preferences);
-  if (!activePreset.roles.planner.model && runtimeConfig.plannerModel) {
-    activePreset.roles.planner.model = runtimeConfig.plannerModel;
-  }
-  if (!activePreset.roles.executor.model && runtimeConfig.executorModel) {
-    activePreset.roles.executor.model = runtimeConfig.executorModel;
-  }
-  await savePreferences({ llmPresets: preferences.llmPresets });
-  renderLlmSettings();
+  try {
+    state.runtimeConfig = await apiFetch('/runtime-config');
+    if (state.runtimeConfig?.plannerModel && !state.preferences.plannerModel) {
+      els.plannerModel.value = state.runtimeConfig.plannerModel;
+    }
+    if (state.runtimeConfig?.executorModel && !state.preferences.executorModel) {
+      els.executorModel.value = state.runtimeConfig.executorModel;
+    }
+  } catch { /* ignore */ }
 }
 
-async function refreshAll(options = {}) {
-  const { includePageContext = true, initializeSelection = false } = options;
-  if (includePageContext) {
-    await refreshPageContext();
-  }
-
-  const [sessionResponse, state] = await Promise.all([
-    chrome.runtime.sendMessage({ type: 'get_session' }),
-    fetchJson('/state'),
-  ]);
-
-  if (!sessionResponse?.ok) {
-    throw new Error(responseError(sessionResponse, 'Failed to fetch extension session'));
-  }
-
-  currentSession = sessionResponse.session;
-  currentState = {
-    conversations: Array.isArray(state.conversations) ? state.conversations : [],
-    tasks: Array.isArray(state.tasks) ? state.tasks : [],
-    events: Array.isArray(state.events) ? state.events : [],
-  };
-
-  const selectedConversationId = initializeSelection
-    ? resolveInitialConversationId(
-        currentState.conversations,
-        currentSession?.conversationId ?? null,
-        preferences.selectedConversationId
-      )
-    : currentState.conversations.some(
-          (conversation) => conversation.id === preferences.selectedConversationId
-        )
-      ? preferences.selectedConversationId
-      : resolveInitialConversationId(
-          currentState.conversations,
-          null,
-          preferences.selectedConversationId
-        );
-
-  if (selectedConversationId !== preferences.selectedConversationId) {
-    await savePreferences({ selectedConversationId });
-  }
-
-  syncDerivedState();
-  render();
-}
-
-function syncDerivedState() {
-  currentConversation = selectCurrentConversation(
-    currentState.conversations,
-    preferences.selectedConversationId
-  );
-  currentTask = selectCurrentTask(currentState.tasks, currentConversation?.id ?? null);
-}
-
+// ── Render ──
 function render() {
-  renderOverlayState();
-  renderLlmPanelState();
-  renderConversationHeader();
-  renderConversationList();
-  renderMessages();
-  renderSession();
-  renderTimelineStrip();
-}
+  const task = state.activeTask;
 
-function renderOverlayState() {
-  const views = {
-    history: els.historyView,
-    run: els.runView,
-    details: els.detailsView,
-  };
-  const labels = {
-    history: 'History',
-    run: 'Run',
-    details: 'Details',
-  };
+  // Hide all content sections by default
+  els.planReview.hidden = true;
+  els.handoffBanner.hidden = true;
+  els.idleView.hidden = true;
+  els.planDetail.hidden = true;
+  els.timelineView.hidden = true;
+  els.resultSummary.hidden = true;
+  els.historyView.hidden = true;
+  els.historyDetailView.hidden = true;
 
-  els.shell.classList.toggle('overlay-open', menuOpen);
-  els.overlayPanel.setAttribute('aria-hidden', String(!menuOpen));
-  els.menuToggleButton.setAttribute('aria-expanded', String(menuOpen));
-  els.overlayBackdrop.hidden = !menuOpen && !llmSettingsOpen;
-  els.overlayTitle.textContent = labels[activeMenuView];
+  renderHeader(task);
+  renderHistoryToggleState();
 
-  for (const [viewName, viewElement] of Object.entries(views)) {
-    const active = menuOpen && activeMenuView === viewName;
-    viewElement.setAttribute('aria-hidden', String(!active));
-    viewElement.classList.toggle('active', active);
+  // History views: show history content, hide other main content
+  if (state.viewMode === 'history-list') {
+    renderHistoryList();
+    return;
   }
-
-  for (const button of els.menuNav.querySelectorAll('[data-menu-view]')) {
-    const active = button.dataset.menuView === activeMenuView;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-current', active ? 'page' : 'false');
-  }
-}
-
-function renderLlmPanelState() {
-  els.shell.classList.toggle('llm-settings-open', llmSettingsOpen);
-  els.llmSettingsPanel.setAttribute('aria-hidden', String(!llmSettingsOpen));
-  els.llmSettingsButton.setAttribute('aria-expanded', String(llmSettingsOpen));
-  els.overlayBackdrop.hidden = !menuOpen && !llmSettingsOpen;
-}
-
-function renderConversationHeader() {
-  if (!currentConversation) {
-    els.conversationTitle.textContent = 'Persistent chat';
-    els.conversationMeta.textContent = 'Select a conversation or start a new one.';
+  if (state.viewMode === 'history-detail') {
+    renderHistoryDetail();
     return;
   }
 
-  els.conversationTitle.textContent = getConversationTitle(currentConversation);
-  const meta = [
-    currentTask ? `${currentTask.status} task` : 'No task yet',
-    currentConversation.updatedAt
-      ? `Updated ${new Date(currentConversation.updatedAt).toLocaleString()}`
-      : null,
-  ].filter(Boolean);
-  els.conversationMeta.textContent = meta.join(' • ');
+  const planSignal = getPlanSignal(task, state.events);
+  const handoffSignal = getModelHandoffSignal(task, state.events);
+
+  if (planSignal) {
+    renderPlanReview(planSignal);
+  }
+  if (handoffSignal) {
+    renderHandoffBanner(handoffSignal, task);
+  }
+
+  // Show the appropriate main content based on task status
+  if (task && ['draft', 'ready'].includes(task.status)) {
+    if (!planSignal) els.idleView.hidden = false;
+  } else if (task && task.status === 'running') {
+    renderTimeline(task, { showIdleWhenEmpty: !planSignal && !handoffSignal });
+  } else if (task && task.status === 'completed') {
+    renderTimeline(task, { showIdleWhenEmpty: !planSignal });
+    if (task.resultSummary) renderResultSummary(task);
+  } else if (task && ['handoff', 'blocked', 'failed'].includes(task.status)) {
+    renderTimeline(task, { showIdleWhenEmpty: !handoffSignal });
+  } else if (task) {
+    renderTimeline(task);
+  } else {
+    els.idleView.hidden = false;
+  }
 }
 
-function renderConversationList() {
-  const conversations = sortConversationsByRecent(currentState.conversations);
-  els.conversationList.innerHTML = '';
+function renderHeader(task) {
+  // Status
+  const status = task?.status || 'idle';
+  els.statusDot.className = 'status-dot ' + statusClass(status);
+  els.statusLabel.textContent = statusLabel(status);
+  els.headerGoal.textContent = 'Auto Browser';
+}
 
-  if (conversations.length === 0) {
-    const empty = document.createElement('li');
-    empty.className = 'conversation-empty';
-    empty.textContent = 'No saved conversations yet.';
-    els.conversationList.appendChild(empty);
+function renderHandoffBanner(signal, task) {
+  const isExt = isExtensionTask(task);
+  const taskEvents = filterTaskEvents();
+
+  els.handoffBanner.hidden = false;
+  els.handoffTitle.textContent = signal.title;
+  els.handoffMessage.textContent = isExt
+    ? `模型请求人工介入：${signal.reason}。完成后返回侧边栏继续执行。`
+    : `模型请求人工介入：${signal.reason}。完成后点击继续执行，系统会重新规划剩余步骤。`;
+  els.handoffResume.disabled = false;
+  els.handoffOpenTab.hidden = !isExt && !getLatestTaskUrl(taskEvents);
+}
+
+function renderPlanMain(task) {
+  els.planDetail.hidden = false;
+
+  // Show user's goal
+  els.planDetailGoal.textContent = task.goal || '';
+
+  // Show plan summary
+  const summary = task.planDraft?.summary || '';
+  els.planDetailSummary.textContent = summary;
+  els.planDetailSummary.hidden = !summary;
+
+  // Show plan steps
+  const steps = task.planDraft?.steps || [];
+  els.planDetailSteps.innerHTML = '';
+  for (const step of steps) {
+    const li = document.createElement('li');
+    li.textContent = (step.title || '') + (step.intent ? ` — ${step.intent}` : '');
+    els.planDetailSteps.appendChild(li);
+  }
+}
+
+function renderPlanReview(signal) {
+  els.planReview.hidden = false;
+  els.planBadge.textContent = signal.badge;
+  els.planActions.hidden = !signal.actionable;
+
+  const summary = signal.summary || 'No summary available.';
+  els.planSummary.textContent = summary;
+
+  const steps = signal.steps || [];
+  els.planSteps.innerHTML = '';
+  for (const step of steps) {
+    const li = document.createElement('li');
+    li.textContent = (step.title || '') + (step.intent ? ` — ${step.intent}` : '');
+    els.planSteps.appendChild(li);
+  }
+}
+
+function renderResultSummary(task) {
+  els.resultSummary.hidden = false;
+  els.resultSummaryText.textContent = task.resultSummary || 'Task completed.';
+}
+
+function renderTimeline(task, options = {}) {
+  const taskEvents = filterTaskEvents();
+
+  if (!task || taskEvents.length === 0) {
+    if (options.showIdleWhenEmpty !== false) {
+      els.idleView.hidden = false;
+    }
+    els.timelineView.hidden = true;
+    els.currentStep.textContent = '';
     return;
   }
 
-  for (const conversation of conversations) {
-    els.conversationList.appendChild(createConversationItem(conversation));
+  els.idleView.hidden = true;
+  els.timelineView.hidden = false;
+
+  if (task.currentStepIndex != null && task.planDraft?.steps) {
+    const total = task.planDraft.steps.length;
+    els.currentStep.textContent = `${task.currentStepIndex + 1}/${total}`;
+  } else {
+    els.currentStep.textContent = `${taskEvents.length} actions`;
+  }
+
+  els.timelineList.innerHTML = '';
+  for (const event of taskEvents.slice(0, 30)) {
+    els.timelineList.appendChild(createTimelineItem(event));
   }
 }
 
-function renderMessages() {
-  const messages = buildChatMessages(currentConversation, currentTask, transientNotice);
-  els.messageThread.innerHTML = '';
+function createTimelineItem(event) {
+  const li = document.createElement('li');
+  li.className = 'timeline-item';
 
-  for (const message of messages) {
-    els.messageThread.appendChild(createMessageCard(message.role, message.content, message.tone));
+  const action = event.summary?.action || 'info';
+
+  const icon = document.createElement('div');
+  icon.className = `timeline-item-icon ${action || 'default'}`;
+  icon.textContent = actionIcon(action);
+
+  const body = document.createElement('div');
+  body.className = 'timeline-item-body';
+
+  const actionName = document.createElement('div');
+  actionName.className = 'timeline-item-action';
+  actionName.textContent = event.type.replace(/^task\.execution\./, '');
+
+  const detail = document.createElement('div');
+  detail.className = 'timeline-item-detail';
+  detail.textContent = event.summary?.label || event.data?.message || '';
+
+  body.append(actionName, detail);
+
+  const time = document.createElement('div');
+  time.className = 'timeline-item-time';
+  time.textContent = new Date(event.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  li.append(icon, body, time);
+  return li;
+}
+
+function renderConfig() {
+  const open = state.configOpen;
+  els.configPanel.classList.toggle('open', open);
+  els.overlayBackdrop.hidden = !open;
+  els.configPanel.setAttribute('aria-hidden', String(!open));
+}
+
+// ── History Views ──
+function toggleHistory() {
+  if (state.viewMode === 'current') {
+    state.viewMode = 'history-list';
+  } else if (state.viewMode === 'history-list') {
+    state.viewMode = 'current';
+  } else {
+    state.viewMode = 'current';
   }
-
-  els.messageThread.scrollTop = els.messageThread.scrollHeight;
-}
-
-function renderSession() {
-  if (!currentTask) {
-    els.taskTitle.textContent = 'No active session';
-    els.taskSummary.textContent = currentConversation
-      ? 'This conversation has no task yet.'
-      : 'Send a message to create or continue an extension conversation.';
-    els.permissionButton.disabled = true;
-    els.resumeButton.disabled = true;
-    els.handoffButton.disabled = true;
-    return;
-  }
-
-  const selectedTaskIsSessionTask = currentSession?.taskId && currentSession.taskId === currentTask.id;
-  els.taskTitle.textContent = `${currentTask.status} • ${currentTask.id}`;
-  const summaryParts = [
-    currentTask.resultSummary,
-    currentTask.planDraft?.summary,
-    selectedTaskIsSessionTask ? currentSession?.stepLabel : null,
-    selectedTaskIsSessionTask
-      ? currentSession?.origin
-        ? `Origin ${currentSession.origin}`
-        : 'Will continue from the current page'
-      : 'Viewing saved conversation state',
-    selectedTaskIsSessionTask ? currentSession?.lastError : null,
-  ].filter(Boolean);
-  els.taskSummary.textContent =
-    summaryParts.join(' • ') || 'Running in a dedicated automation tab.';
-
-  els.permissionButton.disabled =
-    !selectedTaskIsSessionTask || !currentSession?.origin || currentSession.permission === 'granted';
-  els.resumeButton.disabled =
-    !selectedTaskIsSessionTask || !['blocked', 'handoff'].includes(currentSession?.status);
-  els.handoffButton.disabled =
-    !selectedTaskIsSessionTask || !['running', 'blocked'].includes(currentSession?.status);
-}
-
-function renderTimelineStrip() {
-  const events = filterTaskEvents(currentState.events, currentTask?.id ?? null);
-  els.timelineStrip.innerHTML = '';
-
-  if (events.length === 0) {
-    const item = document.createElement('div');
-    item.className = 'timeline-empty';
-    item.textContent = 'No execution events yet.';
-    els.timelineStrip.appendChild(item);
-    return;
-  }
-
-  for (const event of events) {
-    els.timelineStrip.appendChild(createTimelineCard(event));
-  }
-}
-
-function createConversationItem(conversation) {
-  const item = document.createElement('li');
-  item.className = `conversation-item${
-    conversation.id === preferences.selectedConversationId ? ' active' : ''
-  }`;
-
-  const row = document.createElement('div');
-  row.className = 'conversation-row';
-
-  const main = document.createElement('div');
-  main.className = 'conversation-main';
-
-  const titleButton = document.createElement('button');
-  titleButton.className = 'secondary wide';
-  titleButton.textContent = getConversationTitle(conversation);
-  titleButton.addEventListener('click', () => {
-    selectConversation(conversation.id).catch(renderError);
-  });
-
-  const badges = document.createElement('div');
-  badges.className = 'conversation-badges';
-  if (conversation.id === preferences.selectedConversationId) {
-    badges.appendChild(createBadge('Current'));
-  }
-  if (currentSession?.conversationId === conversation.id && currentSession?.taskId) {
-    badges.appendChild(createBadge('In progress'));
-  }
-
-  const updated = document.createElement('div');
-  updated.className = 'conversation-updated';
-  updated.textContent = `Updated ${new Date(conversation.updatedAt ?? conversation.createdAt).toLocaleString()}`;
-
-  main.append(titleButton, badges, updated);
-
-  const actions = document.createElement('div');
-  actions.className = 'conversation-actions';
-
-  const renameButton = document.createElement('button');
-  renameButton.className = 'secondary small';
-  renameButton.textContent = 'Rename';
-  renameButton.addEventListener('click', () => {
-    renameConversation(conversation).catch(renderError);
-  });
-
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'secondary small danger';
-  deleteButton.textContent = 'Delete';
-  deleteButton.addEventListener('click', () => {
-    deleteConversation(conversation).catch(renderError);
-  });
-
-  actions.append(renameButton, deleteButton);
-  row.append(main, actions);
-  item.appendChild(row);
-  return item;
-}
-
-function createBadge(label) {
-  const badge = document.createElement('span');
-  badge.className = 'badge';
-  badge.textContent = label;
-  return badge;
-}
-
-function createMessageCard(role, content, tone = 'default') {
-  const card = document.createElement('div');
-  const roleClass = role === 'assistant' || role === 'system' ? 'assistant' : 'user';
-  card.className = `message-card ${roleClass}${tone === 'notice' ? ' notice' : ''}`;
-
-  const roleLabel = document.createElement('div');
-  roleLabel.className = 'message-role';
-  roleLabel.textContent = tone === 'notice' ? 'notice' : role;
-
-  const body = document.createElement('p');
-  body.className = 'message-body';
-  body.textContent = content;
-
-  card.append(roleLabel, body);
-  return card;
-}
-
-function createTimelineCard(event) {
-  const item = document.createElement('article');
-  item.className = 'timeline-card';
-  const summary = event.summary?.label ? `${event.summary.label} • ` : '';
-  const title = document.createElement('strong');
-  title.textContent = event.type;
-  const time = document.createElement('span');
-  time.textContent = new Date(event.createdAt).toLocaleTimeString();
-  const detail = document.createElement('p');
-  detail.textContent = `${summary}${event.data?.message || event.data?.resultSummary || event.data?.observationSummary || ''}` || 'Event recorded.';
-  item.append(title, time, detail);
-  return item;
-}
-
-async function createConversation() {
-  const conversation = await fetchJson('/conversations', { method: 'POST' });
-  await savePreferences({ selectedConversationId: conversation.id });
-  closeOverlay();
-  await refreshAll({ includePageContext: false });
-}
-
-async function selectConversation(conversationId) {
-  transientNotice = null;
-  await savePreferences({ selectedConversationId: conversationId });
-  closeOverlay();
-  syncDerivedState();
   render();
 }
 
-async function renameConversation(conversation) {
-  const nextTitle = window.prompt('Rename conversation', conversation.title ?? getConversationTitle(conversation));
-  if (nextTitle === null) {
-    return;
-  }
-  await fetchJson(`/conversations/${conversation.id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ title: nextTitle.trim() || null }),
-  });
-  await refreshAll({ includePageContext: false });
+function backToCurrentView() {
+  state.viewMode = 'current';
+  state.selectedHistoryConversationId = null;
+  render();
 }
 
-async function deleteConversation(conversation) {
-  const confirmed = window.confirm(`Delete "${getConversationTitle(conversation)}"? This cannot be undone.`);
-  if (!confirmed) {
-    return;
-  }
-  const nextConversationId = selectNextConversationIdAfterDelete(currentState.conversations, conversation.id);
-  await fetchJson(`/conversations/${conversation.id}`, { method: 'DELETE' });
-  await savePreferences({ selectedConversationId: nextConversationId });
-  if (currentSession?.conversationId === conversation.id) {
-    currentSession = { ...currentSession, conversationId: nextConversationId };
-  }
-  await refreshAll({ includePageContext: false });
+function backToHistoryList() {
+  state.viewMode = 'history-list';
+  state.selectedHistoryConversationId = null;
+  render();
 }
 
-function toggleMenu() {
-  menuOpen = !menuOpen;
-  if (menuOpen) {
-    llmSettingsOpen = false;
-  }
-  if (menuOpen) {
-    activeMenuView = 'history';
-  }
-  renderOverlayState();
-  renderLlmPanelState();
+function renderHistoryToggleState() {
+  const active = state.viewMode !== 'current';
+  els.historyToggle.classList.toggle('active', active);
+  els.historyToggle.setAttribute('aria-pressed', String(active));
 }
 
-function setActiveMenuView(nextView) {
-  if (!['history', 'run', 'details'].includes(nextView)) {
-    return;
-  }
-  activeMenuView = nextView;
-  menuOpen = true;
-  llmSettingsOpen = false;
-  renderOverlayState();
-  renderLlmPanelState();
-}
+function renderHistoryList() {
+  els.historyView.hidden = false;
 
-function toggleLlmSettingsPanel() {
-  llmSettingsOpen = !llmSettingsOpen;
-  if (llmSettingsOpen) {
-    menuOpen = false;
-  }
-  renderOverlayState();
-  renderLlmPanelState();
-}
+  const conversations = sortConversationsByRecent(state.conversations);
+  els.historyList.innerHTML = '';
+  els.historyEmpty.hidden = conversations.length > 0;
 
-function closeOverlay(options = {}) {
-  const restoreLlmFocus = options.restoreFocus && llmSettingsOpen;
-  menuOpen = false;
-  llmSettingsOpen = false;
-  renderOverlayState();
-  renderLlmPanelState();
-  if (options.restoreFocus) {
-    (restoreLlmFocus ? els.llmSettingsButton : els.menuToggleButton).focus();
+  for (const conv of conversations) {
+    const li = document.createElement('li');
+    li.className = 'history-item';
+
+    const main = document.createElement('div');
+    main.className = 'history-item-main';
+
+    const title = document.createElement('div');
+    title.className = 'history-item-title';
+    title.textContent = getConversationTitle(conv);
+
+    const meta = document.createElement('div');
+    meta.className = 'history-item-meta';
+    const msgCount = (conv.messages || []).length;
+    const date = conv.updatedAt
+      ? new Date(conv.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '';
+    meta.textContent = `${msgCount} messages${date ? ' • ' + date : ''}`;
+
+    main.append(title, meta);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'history-item-arrow';
+    arrow.textContent = '→';
+
+    li.append(main, arrow);
+    li.addEventListener('click', () => selectConversation(conv.id));
+    els.historyList.appendChild(li);
   }
 }
 
-function isEditableTarget(target) {
-  if (!(target instanceof Element)) {
-    return false;
-  }
-
-  const editable = target.closest('textarea, input, select, [contenteditable]');
-  if (!editable) {
-    return false;
-  }
-
-  if (editable.hasAttribute('contenteditable')) {
-    return editable.getAttribute('contenteditable') !== 'false';
-  }
-
-  return true;
+function selectConversation(id) {
+  state.selectedHistoryConversationId = id;
+  state.viewMode = 'history-detail';
+  render();
 }
 
-function handleGlobalShortcut(event) {
-  if (event.key === 'Escape' && (menuOpen || llmSettingsOpen)) {
-    event.preventDefault();
-    closeOverlay({ restoreFocus: true });
-    return;
-  }
+function renderHistoryDetail() {
+  els.historyDetailView.hidden = false;
 
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableTarget(event.target)) {
-    return;
-  }
+  const conv = state.conversations.find(c => c.id === state.selectedHistoryConversationId);
+  if (!conv) { backToHistoryList(); return; }
 
-  const menuViewsByShortcut = {
-    1: 'history',
-    2: 'run',
-    3: 'details',
-    4: 'details',
+  els.historyDetailTitle.textContent = getConversationTitle(conv);
+
+  const messages = buildChatMessages(conv, null, null);
+  els.historyMessages.innerHTML = '';
+  for (const msg of messages) {
+    const div = document.createElement('div');
+    div.className = `history-msg ${msg.role}`;
+    div.textContent = msg.content;
+    els.historyMessages.appendChild(div);
+  }
+}
+
+// ── Stale Task Cleanup ──
+
+// ── Helpers ──
+function filterTaskEvents() {
+  const taskId = state.activeTask?.id;
+  if (!taskId) return [];
+  return (state.events || [])
+    .filter(e => e.taskId === taskId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function statusClass(status) {
+  if (status === 'running') return 'running';
+  if (status === 'handoff' || status === 'blocked') return 'handoff';
+  if (status === 'completed') return 'completed';
+  if (status === 'failed') return 'failed';
+  if (status === 'draft' || status === 'ready') return '';
+  return '';
+}
+
+function statusLabel(status) {
+  const map = {
+    idle: '空闲',
+    draft: '草稿',
+    ready: '就绪',
+    running: '运行中',
+    handoff: '需要操作',
+    blocked: '已阻止',
+    completed: '完成',
+    failed: '失败',
+    cancelled: '已取消',
   };
-  const key = event.key.toLowerCase();
-
-  if (key === 'm') {
-    event.preventDefault();
-    toggleMenu();
-    return;
-  }
-
-  if (key === 'l') {
-    event.preventDefault();
-    toggleLlmSettingsPanel();
-    return;
-  }
-
-  if (key === 't') {
-    event.preventDefault();
-    els.timelineStrip.focus();
-    return;
-  }
-
-  if (key === 'i') {
-    event.preventDefault();
-    els.goalInput.focus();
-    return;
-  }
-
-  const nextView = menuViewsByShortcut[key];
-  if (nextView) {
-    event.preventDefault();
-    setActiveMenuView(nextView);
-  }
+  return map[status] || status;
 }
 
-function handleBackgroundResponse(response) {
-  if (!response?.ok) {
-    renderError(new Error(responseError(response, 'Background request failed')));
-    return;
-  }
-  currentSession = response.session ?? currentSession;
-  refreshAll({ includePageContext: false }).catch(renderError);
-}
-
-function renderError(error) {
-  transientNotice = error instanceof Error ? error.message : String(error);
-  renderMessages();
-  renderSession();
-}
-
-function renderLlmSettings() {
-  const activePreset = getActiveLlmPreset(preferences);
-  const selectedProviderId = els.providerPresetSelect.value || activePreset.roles.planner.providerPresetId || preferences.providerPresets[0]?.id;
-  const selectedProvider = preferences.providerPresets.find((preset) => preset.id === selectedProviderId) ?? preferences.providerPresets[0];
-  els.llmPresetSelect.innerHTML = '';
-  for (const preset of preferences.llmPresets) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.name;
-    els.llmPresetSelect.append(option);
-  }
-  els.llmPresetSelect.value = activePreset.id;
-  els.llmPresetNameInput.value = activePreset.name;
-  fillProviderSelect(els.providerPresetSelect, selectedProvider?.id);
-  fillProviderSelect(els.plannerProviderPresetSelect, activePreset.roles.planner.providerPresetId);
-  fillProviderSelect(els.executorProviderPresetSelect, activePreset.roles.executor.providerPresetId);
-  els.providerPresetNameInput.value = selectedProvider?.name ?? '';
-  els.providerInput.value = selectedProvider?.provider ?? 'llm-router';
-  els.providerBaseUrlInput.value = selectedProvider?.baseUrl ?? 'http://127.0.0.1:18000/v1';
-  els.providerApiKeyInput.value = '';
-  els.providerApiKeyInput.placeholder = selectedProvider?.apiKey ? 'Stored; blank keeps existing' : 'Optional';
-  els.plannerModelInput.value = activePreset.roles.planner.model;
-  els.executorModelInput.value = activePreset.roles.executor.model;
-  els.deleteLlmPresetButton.disabled = preferences.llmPresets.length <= 1;
-  const providerInUse = preferences.llmPresets.some((preset) =>
-    Object.values(preset.roles).some((role) => role.providerPresetId === selectedProvider?.id)
-  );
-  els.deleteProviderPresetButton.disabled = preferences.providerPresets.length <= 1 || providerInUse;
-}
-
-function fillProviderSelect(select, selectedId) {
-  select.innerHTML = '';
-  for (const preset of preferences.providerPresets) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.name;
-    select.append(option);
-  }
-  select.value = selectedId && preferences.providerPresets.some((preset) => preset.id === selectedId)
-    ? selectedId
-    : preferences.providerPresets[0]?.id ?? '';
-}
-
-async function activateLlmPreset(presetId) {
-  const nextPresets = preferences.llmPresets.map((preset) => ({ ...preset, active: preset.id === presetId }));
-  await savePreferences({ llmPresets: nextPresets, activeLlmPresetId: presetId });
-}
-
-async function createLlmPreset() {
-  const now = new Date().toISOString();
-  const activePreset = getActiveLlmPreset(preferences);
-  const nextPreset = {
-    ...structuredClone(activePreset),
-    id: `preset-${Date.now()}`,
-    name: 'New preset',
-    active: true,
-    createdAt: now,
-    updatedAt: now,
+function actionIcon(action) {
+  const map = {
+    navigate: '→',
+    click_ref: '↖',
+    click_point: '+',
+    fill_ref: '✎',
+    press_key: '⌨',
+    scroll: '⇅',
+    wait_for: '⏳',
+    finish: '✓',
+    handoff: '⚠',
   };
-  const nextPresets = preferences.llmPresets.map((preset) => ({ ...preset, active: false })).concat(nextPreset);
-  await savePreferences({ llmPresets: nextPresets, activeLlmPresetId: nextPreset.id });
-}
-
-async function saveActiveLlmPreset() {
-  const now = new Date().toISOString();
-  const activePreset = getActiveLlmPreset(preferences);
-  const selectedProviderId = els.providerPresetSelect.value || preferences.providerPresets[0]?.id;
-  const nextProviderPresets = preferences.providerPresets.map((preset) => {
-    if (preset.id !== selectedProviderId) return preset;
-    return {
-      ...preset,
-      name: els.providerPresetNameInput.value.trim() || preset.name,
-      provider: els.providerInput.value.trim() || 'llm-router',
-      baseUrl: els.providerBaseUrlInput.value.trim() || 'http://127.0.0.1:18000/v1',
-      apiKey: els.providerApiKeyInput.value || preset.apiKey,
-      updatedAt: now,
-    };
-  });
-  const nextPresets = preferences.llmPresets.map((preset) => {
-    if (preset.id !== activePreset.id) return preset;
-    return {
-      ...preset,
-      name: els.llmPresetNameInput.value.trim() || preset.name,
-      active: true,
-      roles: {
-        ...preset.roles,
-        planner: { ...preset.roles.planner, providerPresetId: els.plannerProviderPresetSelect.value, model: els.plannerModelInput.value.trim(), updatedAt: now },
-        executor: { ...preset.roles.executor, providerPresetId: els.executorProviderPresetSelect.value, model: els.executorModelInput.value.trim(), updatedAt: now },
-      },
-      updatedAt: now,
-    };
-  });
-  await savePreferences({ providerPresets: nextProviderPresets, llmPresets: nextPresets, activeLlmPresetId: activePreset.id });
-}
-
-async function deleteActiveLlmPreset() {
-  if (preferences.llmPresets.length <= 1) return;
-  const activePreset = getActiveLlmPreset(preferences);
-  const nextPresets = preferences.llmPresets.filter((preset) => preset.id !== activePreset.id);
-  const nextActiveId = nextPresets[0].id;
-  await savePreferences({
-    llmPresets: nextPresets.map((preset) => ({ ...preset, active: preset.id === nextActiveId })),
-    activeLlmPresetId: nextActiveId,
-  });
-}
-
-async function createProviderPreset() {
-  const now = new Date().toISOString();
-  const nextPreset = {
-    id: `provider-${Date.now()}`,
-    name: 'New provider',
-    provider: 'llm-router',
-    baseUrl: 'http://127.0.0.1:18000/v1',
-    apiKey: '',
-    createdAt: now,
-    updatedAt: now,
-  };
-  await savePreferences({ providerPresets: preferences.providerPresets.concat(nextPreset) });
-  els.providerPresetSelect.value = nextPreset.id;
-  renderLlmSettings();
-}
-
-async function deleteSelectedProviderPreset() {
-  if (preferences.providerPresets.length <= 1) return;
-  const providerPresetId = els.providerPresetSelect.value;
-  const inUse = preferences.llmPresets.some((preset) =>
-    Object.values(preset.roles).some((role) => role.providerPresetId === providerPresetId)
-  );
-  if (inUse) return;
-  await savePreferences({ providerPresets: preferences.providerPresets.filter((preset) => preset.id !== providerPresetId) });
-}
-
-function applyStoredUiState() {
-  renderLlmSettings();
-  renderOverlayState();
-}
-
-function responseError(response, fallback) {
-  return response?.error || fallback;
-}
-
-async function loadPreferences() {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
-  const value = stored?.[STORAGE_KEY];
-  return normalizeLlmPreferences({
-    ...DEFAULT_PREFERENCES,
-    ...(value && typeof value === 'object' ? value : {}),
-  });
-}
-
-async function savePreferences(patch) {
-  preferences = normalizeLlmPreferences({
-    ...preferences,
-    ...patch,
-  });
-  await chrome.storage.local.set({ [STORAGE_KEY]: preferences });
-  renderLlmSettings();
-}
-
-async function fetchJson(path, init = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init.headers || {}),
-    },
-  });
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.error?.problem || `HTTP ${response.status}`);
-  }
-  return payload;
+  return map[action] || '•';
 }
