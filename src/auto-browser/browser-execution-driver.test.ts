@@ -45,6 +45,10 @@ const browserConfig: BrowserRuntimeConfig = {
   extensionEnabled: false,
   previewEnabled: true,
   cdpUrl: '',
+  cloakHumanize: false,
+  cloakFingerprintSeed: '',
+  cloakTimezone: '',
+  cloakLocale: '',
 };
 
 function makeTask(goal: string): Task {

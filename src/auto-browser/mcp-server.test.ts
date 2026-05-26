@@ -44,6 +44,10 @@ describe('auto-browser MCP server', () => {
         extensionEnabled: false,
         previewEnabled: false,
         cdpUrl: '',
+        cloakHumanize: false,
+        cloakFingerprintSeed: '',
+        cloakTimezone: '',
+        cloakLocale: '',
       },
       plannerModel: 'test-model',
       modelTier: 'standard',
@@ -73,6 +77,10 @@ describe('auto-browser MCP server', () => {
         extensionEnabled: false,
         previewEnabled: false,
         cdpUrl: '',
+        cloakHumanize: false,
+        cloakFingerprintSeed: '',
+        cloakTimezone: '',
+        cloakLocale: '',
       },
       plannerModel: 'test-model',
       modelTier: 'standard',
@@ -104,6 +112,10 @@ describe('auto-browser MCP server', () => {
         extensionEnabled: false,
         previewEnabled: false,
         cdpUrl: '',
+        cloakHumanize: false,
+        cloakFingerprintSeed: '',
+        cloakTimezone: '',
+        cloakLocale: '',
       },
       plannerModel: 'test-model',
       modelTier: '',
@@ -123,7 +135,7 @@ describe('auto-browser MCP server', () => {
       browserConfig: {
         mode: 'managed', browserFamily: 'chromium', executablePath: '', profilePath: '',
         cookiesPath: '', credentialsPath: '', launchMode: 'auto',
-        extensionEnabled: false, previewEnabled: false, cdpUrl: '',
+        extensionEnabled: false, previewEnabled: false, cdpUrl: '', cloakHumanize: false, cloakFingerprintSeed: '', cloakTimezone: '', cloakLocale: '',
       },
       plannerModel: 'test-model', modelTier: '', context: '',
     });
@@ -131,7 +143,7 @@ describe('auto-browser MCP server', () => {
       browserConfig: {
         mode: 'managed', browserFamily: 'chromium', executablePath: '', profilePath: '',
         cookiesPath: '', credentialsPath: '', launchMode: 'auto',
-        extensionEnabled: false, previewEnabled: false, cdpUrl: '',
+        extensionEnabled: false, previewEnabled: false, cdpUrl: '', cloakHumanize: false, cloakFingerprintSeed: '', cloakTimezone: '', cloakLocale: '',
       },
       plannerModel: 'test-model', modelTier: '', context: '',
     });
@@ -148,7 +160,7 @@ describe('auto-browser MCP server', () => {
       browserConfig: {
         mode: 'managed', browserFamily: 'chromium', executablePath: '', profilePath: '',
         cookiesPath: '', credentialsPath: '', launchMode: 'auto',
-        extensionEnabled: false, previewEnabled: false, cdpUrl: '',
+        extensionEnabled: false, previewEnabled: false, cdpUrl: '', cloakHumanize: false, cloakFingerprintSeed: '', cloakTimezone: '', cloakLocale: '',
       },
       plannerModel: 'test-model', modelTier: '', context: '',
     });
@@ -177,7 +189,7 @@ describe('auto-browser MCP server', () => {
       browserConfig: {
         mode: 'managed', browserFamily: 'chromium', executablePath: '', profilePath: '',
         cookiesPath: '', credentialsPath: '', launchMode: 'auto',
-        extensionEnabled: false, previewEnabled: false, cdpUrl: '',
+        extensionEnabled: false, previewEnabled: false, cdpUrl: '', cloakHumanize: false, cloakFingerprintSeed: '', cloakTimezone: '', cloakLocale: '',
       },
       plannerModel: 'test-model', modelTier: '', context: '',
     });
@@ -199,7 +211,7 @@ describe('auto-browser MCP server', () => {
       browserConfig: {
         mode: 'managed', browserFamily: 'chromium', executablePath: '', profilePath: '',
         cookiesPath: '', credentialsPath: '', launchMode: 'auto',
-        extensionEnabled: false, previewEnabled: false, cdpUrl: '',
+        extensionEnabled: false, previewEnabled: false, cdpUrl: '', cloakHumanize: false, cloakFingerprintSeed: '', cloakTimezone: '', cloakLocale: '',
       },
       plannerModel: 'test-model', modelTier: '', context: '',
     });

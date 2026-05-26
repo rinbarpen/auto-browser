@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import type { BrowserRuntimeMode } from './browser-registry.js';
 
-export type BrowserRuntimeFamily = 'chromium' | 'chrome' | 'edge';
+export type BrowserRuntimeFamily = 'chromium' | 'chrome' | 'edge' | 'cloak';
 
 export interface BrowserRuntimeDefaults {
   platform: NodeJS.Platform;

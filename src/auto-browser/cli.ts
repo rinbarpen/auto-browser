@@ -151,7 +151,7 @@ export function parseCliArgs(argv: string[]): ParsedArguments {
 
   const options: Record<string, string | boolean> = {};
   const positionals: string[] = [];
-  const booleanFlags = new Set(['json', 'tui', 'headless', 'headed', 'extensionEnabled', 'previewEnabled']);
+  const booleanFlags = new Set(['json', 'tui', 'headless', 'headed', 'extensionEnabled', 'previewEnabled', 'cloakHumanize']);
 
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index] ?? '';
@@ -246,7 +246,7 @@ _auto_browser() {
       COMPREPLY=( $(compgen -W "--task-id --json" -- "$cur") )
       ;;
     submit|run)
-      COMPREPLY=( $(compgen -W "--goal --context --conversation-id --browser-family --executable-path --profile-path --cookies-path --credentials-path --headless --headed --extension-enabled --no-extension-enabled --preview-enabled --no-preview-enabled $global_opts" -- "$cur") )
+      COMPREPLY=( $(compgen -W "--goal --context --conversation-id --browser-family --executable-path --profile-path --cookies-path --credentials-path --headless --headed --extension-enabled --no-extension-enabled --preview-enabled --no-preview-enabled --cloak-humanize --cloak-fingerprint-seed --cloak-timezone --cloak-locale $global_opts" -- "$cur") )
       ;;
     state)
       COMPREPLY=( $(compgen -W "--json --port" -- "$cur") )
@@ -300,7 +300,7 @@ case $state in
           '--goal[Task goal]:goal:' \
           '--context[Extra context for the LLM]:context:' \
           '--conversation-id[Conversation identifier]:conversation:' \
-          '--browser-family[Browser family]:browser:(chrome chromium edge)' \
+          '--browser-family[Browser family]:browser:(chrome chromium edge cloak)' \
           '--executable-path[Browser executable path]:path:_files' \
           '--profile-path[Browser profile path]:path:_files' \
           '--cookies-path[Cookies storage state file path]:path:_files' \
@@ -311,6 +311,10 @@ case $state in
           '--no-extension-enabled[Disable extension]' \
           '--preview-enabled[Enable preview]' \
           '--no-preview-enabled[Disable preview]' \
+          '--cloak-humanize[Enable CloakBrowser humanize mode]' \
+          '--cloak-fingerprint-seed[CloakBrowser fingerprint seed]:seed:' \
+          '--cloak-timezone[CloakBrowser timezone override]:tz:' \
+          '--cloak-locale[CloakBrowser locale override]:locale:' \
           '--planner-model[Planner model id]:model:' \
 	          '--executor-tier[Executor model tier]:tier:' \
 	          '--planner-tier[Planner model tier]:tier:' \
@@ -664,6 +668,10 @@ export async function resolveBrowserConfig(
     extensionEnabled: options.extensionEnabled === false ? false : true,
     previewEnabled: options.previewEnabled === false ? false : true,
     cdpUrl: '',
+    cloakHumanize: options.cloakHumanize === true,
+    cloakFingerprintSeed: String(options.cloakFingerprintSeed ?? ''),
+    cloakTimezone: String(options.cloakTimezone ?? ''),
+    cloakLocale: String(options.cloakLocale ?? ''),
   };
 }
 

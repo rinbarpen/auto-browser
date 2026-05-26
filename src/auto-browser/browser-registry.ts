@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 
-export type BrowserFamily = 'chromium' | 'chrome' | 'edge';
+export type BrowserFamily = 'chromium' | 'chrome' | 'edge' | 'cloak';
 export type BrowserLaunchMode = 'auto' | 'headless' | 'headed';
 export type BrowserRuntimeMode = 'system' | 'managed';
 
@@ -15,6 +15,10 @@ export interface BrowserRuntimeConfig {
   extensionEnabled: boolean;
   previewEnabled: boolean;
   cdpUrl: string;
+  cloakHumanize: boolean;
+  cloakFingerprintSeed: string;
+  cloakTimezone: string;
+  cloakLocale: string;
 }
 
 export type ProfileValidationResult =

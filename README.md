@@ -10,6 +10,46 @@ Product-layer implementation for Auto Browser lives at the workspace root, separ
 - `extension/` - Chromium MV3 sidepanel extension with dedicated-tab execution, runtime site permissions, and in-page visual overlay
 - `scripts/serve-app-shell.mjs` - static server for previewing the desktop shell
 
+## Browser Families
+
+Auto Browser supports four browser families: `chromium`, `chrome`, `edge`, and `cloak`.
+
+| Family | Mode | Binary Source |
+|--------|------|---------------|
+| `chromium` | managed | Auto-downloaded by Playwright |
+| `chrome` | system | Local Chrome installation |
+| `edge` | system | Local Edge installation |
+| `cloak` | both | [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) npm package or `CLOAKBROWSER_BINARY_PATH` |
+
+Select with `--browser-family` on `submit`/`run` commands.
+
+### CloakBrowser (stealth mode)
+
+CloakBrowser is a stealth-modified Chromium binary with 57-58 C++-level anti-detection patches (canvas/WebGL fingerprinting, `navigator.webdriver` removal, CDP trace elimination, etc.). Use it to reduce bot detection on sensitive sites.
+
+```bash
+# Managed mode — auto-downloads the cloak binary (requires the npm package)
+npm install cloakbrowser
+auto-browser run --browser-family cloak --goal "check device info"
+
+# System mode — point to an existing cloak binary
+CLOAKBROWSER_BINARY_PATH=/opt/cloak/chrome auto-browser run --browser-family cloak --goal "..."
+
+# CDP mode — connect to an external CloakBrowser instance (e.g. cloakserve Docker)
+auto-browser run --cdp-url ws://localhost:9222 --goal "..."
+```
+
+Additional cloak configuration flags:
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--cloak-humanize` | boolean | Enable human-like interaction patterns (Bezier mouse curves, per-character typing) |
+| `--cloak-fingerprint-seed` | string | Deterministic fingerprint seed for consistent identity |
+| `--cloak-timezone` | string | Override browser timezone |
+| `--cloak-locale` | string | Override browser locale |
+
+Cloak is never auto-detected; it must be explicitly selected with `--browser-family cloak`.
+
 ## Commands
 
 ```bash

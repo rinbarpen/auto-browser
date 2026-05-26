@@ -143,6 +143,10 @@ function parseBrowserConfig(input: JsonBody): BrowserRuntimeConfig {
     extensionEnabled: Boolean(input.extensionEnabled),
     previewEnabled: Boolean(input.previewEnabled ?? true),
     cdpUrl: String(input.cdpUrl ?? ''),
+    cloakHumanize: Boolean(input.cloakHumanize ?? false),
+    cloakFingerprintSeed: String(input.cloakFingerprintSeed ?? ''),
+    cloakTimezone: String(input.cloakTimezone ?? ''),
+    cloakLocale: String(input.cloakLocale ?? ''),
   };
 }
 

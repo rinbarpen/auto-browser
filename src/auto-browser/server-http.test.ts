@@ -199,6 +199,10 @@ describe('control service HTTP server', () => {
           extensionEnabled: false,
           previewEnabled: true,
           cdpUrl: '',
+          cloakHumanize: false,
+          cloakFingerprintSeed: '',
+          cloakTimezone: '',
+          cloakLocale: '',
         },
       }),
     });
@@ -304,6 +308,10 @@ describe('control service HTTP server', () => {
           extensionEnabled: true,
           previewEnabled: true,
           cdpUrl: '',
+          cloakHumanize: false,
+          cloakFingerprintSeed: '',
+          cloakTimezone: '',
+          cloakLocale: '',
         },
       }),
     });
@@ -397,6 +405,10 @@ describe('control service HTTP server', () => {
           extensionEnabled: true,
           previewEnabled: true,
           cdpUrl: '',
+          cloakHumanize: false,
+          cloakFingerprintSeed: '',
+          cloakTimezone: '',
+          cloakLocale: '',
         },
       }),
     });

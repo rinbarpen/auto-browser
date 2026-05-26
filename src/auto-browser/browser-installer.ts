@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
@@ -84,6 +85,35 @@ export class BrowserInstaller {
     } catch (error) {
       throw new Error(
         `Managed Chromium was installed, but launching the browser still failed: ${formatErrorMessage(error)}`
+      );
+    }
+  }
+
+  async resolveCloakBrowserBinary(env: NodeJS.ProcessEnv = process.env): Promise<string> {
+    const binaryPath = env.CLOAKBROWSER_BINARY_PATH?.trim();
+    if (binaryPath && existsSync(binaryPath)) {
+      return binaryPath;
+    }
+
+    try {
+      const cloakbrowser = await import('cloakbrowser');
+      const info = cloakbrowser.binaryInfo?.() as { path?: string } | undefined;
+      if (info?.path && existsSync(info.path)) {
+        return info.path;
+      }
+      await cloakbrowser.ensureBinary();
+      const updatedInfo = cloakbrowser.binaryInfo?.() as { path?: string } | undefined;
+      if (updatedInfo?.path && existsSync(updatedInfo.path)) {
+        return updatedInfo.path;
+      }
+      throw new Error('CloakBrowser binary path not found after ensureBinary()');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('CloakBrowser binary path')) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `CloakBrowser is required but the package or binary could not be loaded. Install it with: npm install cloakbrowser\n${message}`
       );
     }
   }

@@ -87,6 +87,10 @@ const browserConfig: BrowserRuntimeConfig = {
   extensionEnabled: true,
   previewEnabled: true,
   cdpUrl: '',
+  cloakHumanize: false,
+  cloakFingerprintSeed: '',
+  cloakTimezone: '',
+  cloakLocale: '',
 };
 
 describe('InMemoryControlService', () => {

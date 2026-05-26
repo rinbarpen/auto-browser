@@ -194,7 +194,7 @@ export interface ManagedBrowser {
     id: string;
     action: 'launch';
     headless: boolean;
-    browser: 'chromium';
+    browser: 'chromium' | 'cloak';
     executablePath?: string;
     profile: string;
     proxy?: {
@@ -340,7 +340,7 @@ interface AgentBrowserManager {
     id: string;
     action: 'launch';
     headless: boolean;
-    browser: 'chromium';
+    browser: 'chromium' | 'cloak';
     executablePath?: string;
     profile: string;
     proxy?: {
@@ -524,7 +524,7 @@ class AgentBrowserManagedBrowser implements ManagedBrowser {
     id: string;
     action: 'launch';
     headless: boolean;
-    browser: 'chromium';
+    browser: 'chromium' | 'cloak';
     executablePath?: string;
     profile: string;
     proxy?: {
@@ -613,8 +613,6 @@ async function launchTaskBrowser(options: {
 }): Promise<void> {
   const cdpUrl = options.browserConfig.cdpUrl.trim();
   if (cdpUrl) {
-    // Connect to an existing browser via CDP instead of launching a new one.
-    // The browser is managed externally (e.g., by the workbench).
     await options.browser.launch({
       id: options.taskId,
       action: 'launch',
@@ -638,6 +636,11 @@ async function launchTaskBrowser(options: {
     proxy: resolveBrowserProxyFromEnv(),
   };
 
+  if (options.browserConfig.browserFamily === 'cloak') {
+    await launchCloakBrowser(options.browser, options.browserInstaller, launchOptions, options.browserConfig);
+    return;
+  }
+
   if (options.browserConfig.mode === 'managed') {
     await options.browserInstaller.launchManagedBrowser(() =>
       options.browser.launch(launchOptions)
@@ -649,6 +652,28 @@ async function launchTaskBrowser(options: {
     ...launchOptions,
     executablePath: options.browserConfig.executablePath,
   });
+}
+
+async function launchCloakBrowser(
+  browser: ManagedBrowser,
+  installer: BrowserInstaller,
+  baseOptions: {
+    id: string;
+    action: 'launch';
+    headless: boolean;
+    browser: 'chromium';
+    profile: string;
+    proxy?: { server: string; bypass?: string };
+  },
+  config: BrowserRuntimeConfig
+): Promise<void> {
+  const explicitPath = config.executablePath.trim();
+  if (explicitPath) {
+    await browser.launch({ ...baseOptions, executablePath: explicitPath });
+    return;
+  }
+  const binaryPath = await installer.resolveCloakBrowserBinary();
+  await browser.launch({ ...baseOptions, executablePath: binaryPath });
 }
 
 async function loadCookies(
