@@ -470,4 +470,109 @@ describe('InMemoryControlService', () => {
     );
     expect(JSON.stringify(messages[1]?.content)).toContain('viewport CSS pixels');
   });
+
+  describe('Goal and Plan CRUD', () => {
+    const service = new InMemoryControlService({
+      planner: new StubPlanner(),
+      executionDriver: new StubExecutionDriver(),
+    });
+
+    it('creates and retrieves a goal', () => {
+      const goal = service.createGoal('Search docs', 'Find API references', 'need REST API docs');
+      expect(goal.id).toMatch(/^goal_/);
+      expect(goal.title).toBe('Search docs');
+      expect(goal.description).toBe('Find API references');
+      expect(goal.context).toBe('need REST API docs');
+      expect(goal.status).toBe('active');
+
+      const fetched = service.getGoal(goal.id);
+      expect(fetched.title).toBe('Search docs');
+    });
+
+    it('lists goals with optional status filter', () => {
+      const g1 = service.createGoal('Goal one');
+      const g2 = service.createGoal('Goal two');
+      const all = service.getGoals();
+      expect(all.length).toBeGreaterThanOrEqual(3);
+
+      const active = service.getGoals('active');
+      expect(active.every((g) => g.status === 'active')).toBe(true);
+    });
+
+    it('archives a goal', () => {
+      const goal = service.createGoal('Temporary');
+      const archived = service.archiveGoal(goal.id);
+      expect(archived.status).toBe('archived');
+
+      const fetched = service.getGoal(goal.id);
+      expect(fetched.status).toBe('archived');
+    });
+
+    it('creates a plan with goal reference and versioning', () => {
+      const goal = service.createGoal('Test versioning');
+      const plan1 = service.createPlan(goal.id, 'First attempt', [
+        { id: 's1', title: 'Step 1', intent: 'Do first' },
+        { id: 's2', title: 'Step 2', intent: 'Do second' },
+      ], 1);
+      expect(plan1.version).toBe(1);
+      expect(plan1.status).toBe('draft');
+      expect(plan1.goalId).toBe(goal.id);
+
+      const plans = service.getPlansForGoal(goal.id);
+      expect(plans.length).toBe(1);
+    });
+
+    it('creates new version on plan edit', () => {
+      const goal = service.createGoal('Edit test');
+      const plan = service.createPlan(goal.id, 'Original', [
+        { id: 's1', title: 'Old title', intent: 'Old intent' },
+      ], 1);
+
+      const edited = service.updatePlanSteps(plan.id, [
+        { stepId: 's1', title: 'New title' },
+      ]);
+
+      // Old plan is superseded
+      expect(plan.status).toBe('superseded');
+
+      // New plan has incremented version
+      expect(edited.version).toBe(2);
+      expect(edited.status).toBe('draft');
+      expect(edited.steps[0].title).toBe('New title');
+
+      const plans = service.getPlansForGoal(goal.id);
+      expect(plans.length).toBe(2);
+    });
+
+    it('submitUserMessage creates Goal and Plan entities', async () => {
+      const conv = service.createConversation();
+      const task = await service.submitUserMessage(conv.id, 'test goal', {
+        browserConfig,
+        plannerModel: 'test-planner',
+      });
+
+      expect(task.goalId).toMatch(/^goal_/);
+      expect(task.planId).toMatch(/^plan_/);
+
+      const goal = service.getGoal(task.goalId);
+      expect(goal.title).toBe('test goal');
+
+      const plan = service.getPlan(task.planId);
+      expect(plan.goalId).toBe(task.goalId);
+    });
+
+    it('backward compat helpers resolve goal and plan', async () => {
+      const conv = service.createConversation();
+      const task = await service.submitUserMessage(conv.id, 'backward test', {
+        browserConfig,
+        plannerModel: 'test-planner',
+      });
+
+      const goal = service.getGoalForTask(task.id);
+      expect(goal.title).toBe('backward test');
+
+      const plan = service.getPlanForTask(task.id);
+      expect(plan.summary).toContain('backward test');
+    });
+  });
 });

@@ -258,6 +258,74 @@ function isNonModelHandoffReason(reason) {
   return /permission (required|denied)|exceed(?:ed|ing)|iteration budget|max iterations|visual-capable executor|canvas UI requires visual|task handed off to user/i.test(text);
 }
 
+export function deriveIterations(taskId, events) {
+  if (!taskId) return [];
+  const taskEvents = (events ?? [])
+    .filter((e) => e.taskId === taskId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  const iterations = [];
+  let current = null;
+
+  for (const event of taskEvents) {
+    switch (event.type) {
+      case 'task.execution.iteration.started': {
+        if (current) iterations.push(current);
+        current = {
+          iteration: event.data?.iteration ?? iterations.length,
+          url: event.data?.url ?? event.summary?.url ?? '',
+          title: event.data?.title ?? event.summary?.title ?? '',
+          actionLabel: event.summary?.label ?? undefined,
+          actionDetails: event.summary?.url ?? undefined,
+          rawCompletion: undefined,
+          tokenUsage: undefined,
+          error: undefined,
+        };
+        break;
+      }
+      case 'task.execution.llm.completion': {
+        if (!current) {
+          current = { iteration: iterations.length, url: '', title: '', rawCompletion: undefined, tokenUsage: undefined };
+        }
+        if (event.data?.content) current.rawCompletion = event.data.content;
+        if (event.data?.usage) current.tokenUsage = event.data.usage;
+        break;
+      }
+      case 'task.execution.iteration.completed': {
+        if (!current) {
+          current = { iteration: iterations.length, url: '', title: '', rawCompletion: undefined, tokenUsage: undefined };
+        }
+        if (event.summary?.label) current.actionLabel = event.summary.label;
+        if (event.summary?.url) current.actionDetails = event.summary.url;
+        if (event.summary?.title) current.actionDetails = event.summary.title;
+        if (event.summary?.error) current.error = event.summary.error;
+        iterations.push(current);
+        current = null;
+        break;
+      }
+      case 'task.execution.action_started': {
+        if (!current) {
+          current = { iteration: iterations.length, url: '', title: '', rawCompletion: undefined, tokenUsage: undefined };
+        }
+        if (event.summary?.label) current.actionLabel = event.summary.label;
+        break;
+      }
+      case 'task.execution.action_completed': {
+        if (!current) {
+          current = { iteration: iterations.length, url: '', title: '', rawCompletion: undefined, tokenUsage: undefined };
+        }
+        if (event.summary?.label) current.actionLabel = event.summary.label;
+        if (event.summary?.url) current.actionDetails = event.summary.url;
+        if (event.summary?.error) current.error = event.summary.error;
+        break;
+      }
+    }
+  }
+  if (current) iterations.push(current);
+
+  return iterations;
+}
+
 export function createDefaultLlmPreset(plannerModel = '', executorModel = '') {
   const now = new Date().toISOString();
   return {

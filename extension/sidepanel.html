@@ -10,10 +10,25 @@
     <div class="app" id="appRoot">
       <!-- Header -->
       <header class="header">
+        <button class="btn-icon" id="goalsToggle" type="button" aria-label="Goals" title="Goals">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
         <button class="btn-icon" id="historyToggle" type="button" aria-label="Conversation history" aria-pressed="false" title="History (Ctrl+H)">
           <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <h1 class="header-goal" id="headerGoal">Auto Browser</h1>
+        <div class="header-model" id="headerModel" hidden>
+          <button class="model-tier-pill" id="modelTierPill" type="button" title="Switch model tier">
+            <span class="model-tier-label" id="modelTierLabel">Standard</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="10" height="10"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="model-tier-dropdown" id="modelTierDropdown" hidden>
+            <button class="model-tier-option" data-tier="standard">Standard</button>
+            <button class="model-tier-option" data-tier="premium">Premium</button>
+            <button class="model-tier-option" data-tier="economy">Economy</button>
+            <button class="model-tier-option" data-tier="custom">Custom</button>
+          </div>
+        </div>
         <div class="header-status" id="headerStatus">
           <span class="status-dot" id="statusDot" aria-label="Task status indicator"></span>
           <span class="status-label" id="statusLabel">Idle</span>
@@ -29,103 +44,69 @@
         <span class="error-message" id="errorMessage"></span>
       </div>
 
-      <!-- Main Content -->
+      <!-- Main Content — unified chat view -->
       <main class="main">
-        <div class="prompt-stack" id="promptStack">
-          <!-- Plan review -->
-          <div class="plan-review" id="planReview" hidden>
-            <div class="plan-review-header">
-              <h2>Review Plan</h2>
-              <span class="plan-review-badge" id="planBadge">Draft</span>
-            </div>
-            <p class="plan-review-summary" id="planSummary"></p>
-            <ol class="plan-review-steps" id="planSteps" role="list"></ol>
-            <div class="plan-review-actions" id="planActions">
-              <button class="btn btn-primary" id="planApprove" type="button">Approve and Run</button>
-              <button class="btn btn-secondary" id="planCancel" type="button">Cancel</button>
-            </div>
-          </div>
-
-          <!-- Handoff Banner -->
+        <div class="main-scroll" id="mainScroll">
+          <!-- Handoff Banner (sticky action prompt) -->
           <section class="handoff-banner" id="handoffBanner" hidden aria-live="assertive">
             <div class="handoff-icon">&#9888;</div>
             <div class="handoff-body">
-              <strong class="handoff-title" id="handoffTitle">需要人工操作</strong>
-              <p class="handoff-message" id="handoffMessage">验证码或安全验证需要您手动处理。</p>
+              <strong class="handoff-title" id="handoffTitle">Needs Attention</strong>
+              <p class="handoff-message" id="handoffMessage">The model requested human intervention.</p>
               <div class="handoff-actions">
-                <button class="btn btn-primary" id="handoffOpenTab" type="button">打开自动化标签页</button>
-                <button class="btn" id="handoffResume" type="button">继续执行</button>
-                <button class="btn btn-secondary" id="handoffCancel" type="button">放弃</button>
+                <button class="btn btn-primary" id="handoffOpenTab" type="button">Open Automation Tab</button>
+                <button class="btn" id="handoffResume" type="button">Continue</button>
+                <button class="btn btn-secondary" id="handoffCancel" type="button">Abandon</button>
               </div>
             </div>
           </section>
-        </div>
 
-        <!-- Idle state -->
-        <div class="idle-view" id="idleView">
-          <div class="idle-graphic">
-            <svg viewBox="0 0 64 64" aria-hidden="true" width="48" height="48">
-              <rect x="8" y="12" width="48" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
-              <rect x="14" y="18" width="36" height="24" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-              <line x1="32" y1="6" x2="32" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <line x1="20" y1="4" x2="20" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
+          <!-- Chat Messages -->
+          <div class="chat-messages" id="chatMessages">
+            <!-- Empty state -->
+            <div class="chat-empty" id="chatEmpty">
+              <div class="idle-graphic">
+                <svg viewBox="0 0 64 64" aria-hidden="true" width="48" height="48">
+                  <rect x="8" y="12" width="48" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+                  <rect x="14" y="18" width="36" height="24" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                  <line x1="32" y1="6" x2="32" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <line x1="20" y1="4" x2="20" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <p class="idle-text">Enter a goal to start automation</p>
+              <p class="idle-hint">Type / for commands</p>
+            </div>
           </div>
-          <p class="idle-text">输入目标，开始自动化</p>
-        </div>
-
-        <!-- Plan detail in main content -->
-        <div class="plan-detail" id="planDetail" hidden>
-          <h2>执行计划</h2>
-          <p class="plan-detail-goal" id="planDetailGoal"></p>
-          <p class="plan-detail-summary" id="planDetailSummary"></p>
-          <ol class="plan-detail-steps" id="planDetailSteps" role="list"></ol>
-        </div>
-
-        <!-- Execution timeline -->
-        <div class="timeline-view" id="timelineView" hidden>
-          <div class="timeline-header">
-            <h2 class="timeline-title">执行记录</h2>
-            <span class="timeline-step" id="currentStep" aria-live="polite"></span>
-          </div>
-          <ul class="timeline-list" id="timelineList" role="list"></ul>
-        </div>
-
-        <!-- Result summary -->
-        <div class="result-summary" id="resultSummary" hidden>
-          <div class="result-summary-header">
-            <span class="result-summary-icon">&#10003;</span>
-            <strong>Completed</strong>
-          </div>
-          <p class="result-summary-text" id="resultSummaryText"></p>
-        </div>
-
-        <!-- History list -->
-        <div class="history-view" id="historyView" hidden>
-          <div class="history-list-header">
-            <h2>Conversations</h2>
-            <button class="btn btn-sm" id="newConversationInHistory" type="button">New</button>
-          </div>
-          <p class="history-empty" id="historyEmpty">No conversations yet.</p>
-          <ul class="history-list" id="historyList" role="list"></ul>
-        </div>
-
-        <!-- History detail -->
-        <div class="history-detail-view" id="historyDetailView" hidden>
-          <button class="btn btn-sm" id="historyBack" type="button">← Back</button>
-          <h2 class="history-detail-title" id="historyDetailTitle"></h2>
-          <div class="history-messages" id="historyMessages"></div>
         </div>
       </main>
 
       <!-- Composer -->
       <footer class="composer">
+        <!-- Context chips -->
+        <div class="context-area" id="contextArea" hidden>
+          <div class="context-chips" id="contextChips"></div>
+          <div class="context-form" id="contextForm" hidden>
+            <input type="url" class="context-url-input" id="contextUrlInput" placeholder="Paste a URL to reference..." />
+            <textarea class="context-text-input" id="contextTextInput" rows="2" placeholder="Or type a note..."></textarea>
+            <div class="context-form-actions">
+              <button class="btn btn-sm btn-primary" id="contextAddBtn" type="button">Add</button>
+              <button class="btn btn-sm" id="contextCancelBtn" type="button">Cancel</button>
+            </div>
+          </div>
+          <button class="btn btn-sm context-toggle" id="contextToggle" type="button" title="Add reference context">+ Context</button>
+        </div>
+
+        <!-- Command palette -->
+        <div class="command-palette" id="commandPalette" hidden>
+          <div class="command-list" id="commandList"></div>
+        </div>
+
         <div class="composer-row">
           <input
             type="text"
             id="goalInput"
             class="composer-input"
-            placeholder="描述你想自动化的任务... (Ctrl+Enter 发送, Ctrl+, 设置)"
+            placeholder="Describe what to automate... (Ctrl+Enter to send, / for commands)"
             autocomplete="off"
             aria-label="Task goal"
           />
@@ -135,42 +116,75 @@
         </div>
       </footer>
 
+      <!-- History Panel (slide in from left) -->
+      <aside class="history-panel" id="historyPanel" aria-hidden="true">
+        <div class="history-panel-header">
+          <nav class="panel-tabs">
+            <button class="panel-tab active" data-panel="history">History</button>
+            <button class="panel-tab" data-panel="goals">Goals</button>
+          </nav>
+          <button class="btn-icon" id="historyClose" type="button" aria-label="Close conversations">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+        <div class="history-panel-body">
+          <div class="history-view" id="historyView">
+            <div class="history-list-header">
+              <h2>Conversations</h2>
+              <button class="btn btn-sm" id="newConversationInHistory" type="button">New</button>
+            </div>
+            <p class="history-empty" id="historyEmpty">No conversations yet.</p>
+            <ul class="history-list" id="historyList" role="list"></ul>
+          </div>
+          <div class="history-detail-view" id="historyDetailView" hidden>
+            <button class="btn btn-sm" id="historyBack" type="button">← Back</button>
+            <h2 class="history-detail-title" id="historyDetailTitle"></h2>
+            <div class="history-messages" id="historyMessages"></div>
+          </div>
+          <div class="goals-view" id="goalsView" hidden>
+            <div class="history-list-header">
+              <h2>Goals</h2>
+              <button class="btn btn-sm" id="newGoalBtn" type="button">+ New</button>
+            </div>
+            <p class="history-empty" id="goalsEmpty">No goals yet.</p>
+            <ul class="history-list" id="goalsList" role="list"></ul>
+          </div>
+        </div>
+      </aside>
+
       <!-- Config Panel (slide in from right) -->
       <aside class="config-panel" id="configPanel" aria-hidden="true">
         <div class="config-header">
-          <h2>配置</h2>
+          <h2>Settings</h2>
           <button class="btn-icon" id="configClose" type="button" aria-label="Close config">
             <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M6 6l12 12M18 6 6 18"/></svg>
           </button>
         </div>
-
         <div class="config-body">
           <section class="config-section">
-            <h3>凭据管理</h3>
-            <p class="config-hint">存储网站登录凭据，AI 自动填充。</p>
+            <h3>Credentials</h3>
+            <p class="config-hint">Store website login credentials for auto-fill.</p>
             <label class="field">
-              <span>凭据 JSON</span>
+              <span>Credentials JSON</span>
               <textarea id="credsEditor" rows="6" class="code-input" spellcheck="false"></textarea>
             </label>
             <div class="field-row">
-              <button class="btn btn-secondary btn-sm" id="credsLoad" type="button">加载文件</button>
-              <button class="btn btn-secondary btn-sm" id="credsSave" type="button">保存</button>
+              <button class="btn btn-secondary btn-sm" id="credsLoad" type="button">Load File</button>
+              <button class="btn btn-secondary btn-sm" id="credsSave" type="button">Save</button>
             </div>
           </section>
-
           <section class="config-section">
-            <h3>Cookie 管理</h3>
-            <p class="config-hint">持久化 Cookie 会话，绕过登录验证码。</p>
+            <h3>Cookies</h3>
+            <p class="config-hint">Persist cookie sessions to bypass login CAPTCHAs.</p>
             <label class="field">
-              <span>Cookie 文件路径</span>
+              <span>Cookie File Path</span>
               <input type="text" id="cookiePath" placeholder="~/.auto-browser/cookies.json" />
             </label>
           </section>
-
           <section class="config-section">
-            <h3>模型配置</h3>
+            <h3>Model Configuration</h3>
             <label class="field">
-              <span>模型预设</span>
+              <span>Model Tier</span>
               <select id="modelTier">
                 <option value="standard">Standard</option>
                 <option value="premium">Premium</option>
@@ -191,7 +205,19 @@
       </aside>
     </div>
 
+    <!-- Overlays -->
     <div class="overlay-backdrop" id="overlayBackdrop" hidden></div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" hidden></div>
+
+    <!-- Screenshot lightbox -->
+    <div class="screenshot-lightbox" id="screenshotLightbox" hidden>
+      <img class="screenshot-lightbox-img" id="screenshotLightboxImg" alt="Screenshot" />
+      <button class="screenshot-lightbox-close" id="screenshotLightboxClose" type="button">&times;</button>
+    </div>
+
+    <!-- LLM raw completion modal (created dynamically) -->
 
     <script type="module" src="./sidepanel.js"></script>
   </body>

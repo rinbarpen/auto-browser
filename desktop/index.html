@@ -40,6 +40,12 @@
             <label><input id="previewEnabled" type="checkbox" checked /> Preview</label>
           </div>
         </section>
+
+        <section class="sidebar-section" id="goalsSection">
+          <div class="section-label">Goals</div>
+          <div id="goalsList" class="goals-list"></div>
+          <button class="ghost-button" id="newGoalButton" style="margin-top:8px;width:100%">+ New Goal</button>
+        </section>
       </aside>
 
       <main class="main-panel">
@@ -70,6 +76,15 @@
           </div>
           <p id="taskSummary" class="task-summary">Send a goal to generate a task draft.</p>
           <ol id="taskSteps" class="task-steps"></ol>
+        </section>
+
+        <section class="iterations-rail" id="iterationsRail" hidden>
+          <div class="iterations-rail-header">
+            <div class="section-label">Agent Loop</div>
+            <span id="iterationsProgress" class="iterations-progress"></span>
+          </div>
+          <div id="iterationsList" class="iterations-list"></div>
+          <div id="iterationsTokens" class="iterations-tokens" hidden></div>
         </section>
 
         <footer class="composer">

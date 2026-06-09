@@ -201,6 +201,64 @@ describe('auto-browser MCP server', () => {
     expect(resumed.status).toBe('draft');
   });
 
+  it('create_goal and get_goal work correctly', async () => {
+    vi.stubGlobal('process', { ...process, env: { ...process.env, NODE_ENV: 'test' } });
+    const service = createControlService();
+    const goal = service.createGoal('Test goal', 'A description', 'Some context');
+    expect(goal.id).toMatch(/^goal_/);
+    expect(goal.title).toBe('Test goal');
+    expect(goal.status).toBe('active');
+
+    const fetched = service.getGoal(goal.id);
+    expect(fetched.description).toBe('A description');
+  });
+
+  it('list_goals returns all goals', async () => {
+    vi.stubGlobal('process', { ...process, env: { ...process.env, NODE_ENV: 'test' } });
+    const service = createControlService();
+    service.createGoal('Goal 1');
+    service.createGoal('Goal 2');
+    const goals = service.getGoals();
+    expect(goals.length).toBe(2);
+  });
+
+  it('draft_plan_for_goal creates a plan with DemoPlanner', async () => {
+    vi.stubGlobal('process', { ...process, env: { ...process.env, NODE_ENV: 'test' } });
+    const service = createControlService();
+    const goal = service.createGoal('Draft plan test');
+    const plan = await service.draftPlanForGoal(goal.id, {
+      browserConfig: {
+        mode: 'managed', browserFamily: 'chromium', executablePath: '', profilePath: '',
+        cookiesPath: '', credentialsPath: '', launchMode: 'auto',
+        extensionEnabled: false, previewEnabled: false, cdpUrl: '',
+      },
+      plannerModel: 'test-model',
+      modelTier: '',
+    });
+    expect(plan.id).toMatch(/^plan_/);
+    expect(plan.goalId).toBe(goal.id);
+    expect(plan.steps.length).toBeGreaterThan(0);
+    expect(plan.status).toBe('draft');
+  });
+
+  it('edit_plan creates a new version', async () => {
+    vi.stubGlobal('process', { ...process, env: { ...process.env, NODE_ENV: 'test' } });
+    const service = createControlService();
+    const goal = service.createGoal('Edit plan test');
+    const plan = service.createPlan(goal.id, 'Original', [
+      { id: 's1', title: 'Step 1', intent: 'Do it' },
+    ], 1);
+
+    const edited = service.updatePlanSteps(plan.id, [
+      { stepId: 's1', title: 'Updated step' },
+    ]);
+    expect(edited.version).toBe(2);
+    expect(edited.steps[0].title).toBe('Updated step');
+
+    const plans = service.getPlansForGoal(goal.id);
+    expect(plans.length).toBe(2);
+  });
+
   it('get_state returns conversations, tasks, activeTask, events', async () => {
     vi.stubGlobal('process', { ...process, env: { ...process.env, NODE_ENV: 'test' } });
     const service = createControlService();

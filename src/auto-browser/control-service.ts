@@ -34,6 +34,27 @@ export interface PlanDraft {
   steps: PlanStep[];
 }
 
+export interface Goal {
+  id: string;
+  title: string;
+  description: string | null;
+  context: string | null;
+  status: 'active' | 'completed' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Plan {
+  id: string;
+  goalId: string;
+  version: number;
+  summary: string;
+  steps: PlanStep[];
+  status: 'draft' | 'approved' | 'superseded';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ConversationMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -55,6 +76,8 @@ export interface Task {
   goal: string;
   context: string | null;
   status: TaskStatus;
+  goalId: string;
+  planId: string | null;
   planDraft: PlanDraft;
   browserConfig: BrowserRuntimeConfig;
   plannerModel: string | null;
@@ -99,7 +122,8 @@ export interface TaskEvent {
     | 'task.execution.completed'
     | 'task.execution.iteration.started'
     | 'task.execution.llm.completion'
-    | 'task.execution.iteration.completed';
+    | 'task.execution.iteration.completed'
+    | 'task.execution.screenshot';
   createdAt: string;
   source: 'service' | 'extension';
   summary?: ActionSummary;
@@ -145,6 +169,7 @@ export interface VisualCue {
 export interface Planner {
   draft(goal: string, browserConfig: BrowserRuntimeConfig, model: string, modelTier?: string): Promise<PlanDraft>;
   replanRemaining(taskId: string, task: Task, model: string, modelTier?: string): Promise<PlanDraft>;
+  regenerateStep?(goal: string, planSteps: PlanStep[], stepId: string, model: string): Promise<PlanStep>;
 }
 
 export interface ExecutionDriverResult {
@@ -207,6 +232,8 @@ export interface ManagedBrowser {
   close(): Promise<void>;
   saveStorageState?(path: string): Promise<void>;
   addCookies?(cookies: CookieData[]): Promise<void>;
+  /** Expose the raw AgentBrowserManager for stream server integration. Returns undefined if not available. */
+  getRawBrowser?(): unknown;
 }
 
 export type BrowserFactory = () => Promise<ManagedBrowser>;
@@ -222,6 +249,7 @@ export interface AgentLoopExecutionDriverOptions extends BrowserExecutionDriverO
   maxIterations?: number;
   maxConsecutiveErrors?: number;
   eventEmitter?: EventEmitter;
+  streamPort?: number;
 }
 
 export interface SubmitMessageOptions {
@@ -254,6 +282,12 @@ export interface ExtensionExecutionReport {
   outcome?: 'success' | 'failed' | 'blocked';
   observationSummary?: string;
   message?: string;
+}
+
+export interface DraftPlanOptions {
+  browserConfig: BrowserRuntimeConfig;
+  plannerModel: string;
+  modelTier?: string;
 }
 
 export interface ExecutorDecider {
@@ -553,6 +587,10 @@ class AgentBrowserManagedBrowser implements ManagedBrowser {
     const ctx = page.context();
     await ctx.addCookies(cookies);
   }
+
+  getRawBrowser(): unknown {
+    return this.browser;
+  }
 }
 
 function defaultHasDisplayServer(): boolean {
@@ -789,6 +827,7 @@ export class AgentLoopExecutionDriver implements ExecutionDriver {
   private readonly captchaSolver: ReturnType<typeof createCaptchaSolverFromEnv>;
   private eventEmitter: EventEmitter | null = null;
   private cdpConnection: boolean = false;
+  private readonly streamPort: number;
 
   constructor(options: AgentLoopExecutionDriverOptions) {
     this.browserFactory = options.browserFactory ?? createDefaultBrowser;
@@ -799,6 +838,7 @@ export class AgentLoopExecutionDriver implements ExecutionDriver {
     this.maxConsecutiveErrors = options.maxConsecutiveErrors ?? 3;
     this.captchaSolver = createCaptchaSolverFromEnv();
     this.eventEmitter = options.eventEmitter ?? null;
+    this.streamPort = options.streamPort ?? (process.env.AUTO_BROWSER_STREAM_PORT ? parseInt(process.env.AUTO_BROWSER_STREAM_PORT, 10) : 9223);
   }
 
   setEventEmitter(emitter: EventEmitter | null): void {
@@ -838,6 +878,19 @@ export class AgentLoopExecutionDriver implements ExecutionDriver {
 
     // Track whether this is a CDP connection so we don't close the external browser
     this.cdpConnection = task.browserConfig.cdpUrl.trim().length > 0;
+
+    // Start browser stream for desktop preview
+    let streamServer: { start(): Promise<void>; stop(): Promise<void> } | null = null;
+    if (task.browserConfig.previewEnabled && !this.cdpConnection && browser.getRawBrowser) {
+      try {
+        const { StreamServer } = await import('../../agent-browser/dist/stream-server.js');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        streamServer = new StreamServer(browser.getRawBrowser() as any, this.streamPort) as { start(): Promise<void>; stop(): Promise<void> };
+        await streamServer.start();
+      } catch (error) {
+        console.error('[AgentLoopExecutionDriver] Failed to start stream server:', error);
+      }
+    }
 
     // Load persisted cookies if a cookiesPath is configured
     const cookiesPath = (task.browserConfig.cookiesPath ?? '').trim();
@@ -965,6 +1018,12 @@ export class AgentLoopExecutionDriver implements ExecutionDriver {
               steps: [],
             };
           }
+          this.eventEmitter?.emit('screenshot', {
+            base64: observation.visual?.base64,
+            mimeType: observation.visual?.mimeType,
+            viewport: observation.visual?.viewport,
+            reason: visualReason,
+          });
         }
 
         if (shouldAutoFinish(task.goal, observation, history, repeatedObservationCount)) {
@@ -1014,8 +1073,9 @@ export class AgentLoopExecutionDriver implements ExecutionDriver {
           }
         }
 
+        const currentModel = task.executorModel?.trim() || executorModel;
         const completion = await this.llmClient.complete({
-          model: observation.visual ? process.env.AUTO_BROWSER_VISION_MODEL?.trim() || executorModel : executorModel,
+          model: observation.visual ? process.env.AUTO_BROWSER_VISION_MODEL?.trim() || currentModel : currentModel,
           modelTier: task.modelTier || undefined,
           temperature: 0.1,
           messages: buildExecutorMessages(task, observation, history),
@@ -1108,6 +1168,14 @@ export class AgentLoopExecutionDriver implements ExecutionDriver {
         clearTimeout(timeoutHandle);
       }
     } finally {
+      // Stop stream server before closing browser
+      if (streamServer) {
+        try {
+          await streamServer.stop();
+        } catch (error) {
+          console.error('[AgentLoopExecutionDriver] Failed to stop stream server:', error);
+        }
+      }
       // Persist cookies before closing if cookiesPath is configured
       if (cookiesPath) {
         await saveCookies(cookiesPath, browser);
@@ -1853,6 +1921,8 @@ function inferAutoFinishMessage(goal: string, observation: Record<string, unknow
 export class InMemoryControlService extends EventEmitter {
   private readonly conversations = new Map<string, Conversation>();
   private readonly tasks = new Map<string, Task>();
+  private readonly goals = new Map<string, Goal>();
+  private readonly plans = new Map<string, Plan>();
   private readonly events: TaskEvent[] = [];
   private readonly planner: Planner;
   private readonly executionDriver: ExecutionDriver;
@@ -1885,6 +1955,132 @@ export class InMemoryControlService extends EventEmitter {
       data: { conversationId: conversation.id },
     });
     return conversation;
+  }
+
+  // ── Goal CRUD ──────────────────────────────────────────────
+
+  createGoal(title: string, description?: string | null, context?: string | null): Goal {
+    const timestamp = new Date().toISOString();
+    const goal: Goal = {
+      id: this.createId('goal'),
+      title,
+      description: description ?? null,
+      context: context ?? null,
+      status: 'active',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.goals.set(goal.id, goal);
+    return goal;
+  }
+
+  getGoal(id: string): Goal {
+    const goal = this.goals.get(id);
+    if (!goal) {
+      throw controlServiceError('getGoal', `Goal not found: ${id}`);
+    }
+    return goal;
+  }
+
+  getGoals(status?: 'active' | 'completed' | 'archived'): Goal[] {
+    const all = Array.from(this.goals.values());
+    return status ? all.filter((g) => g.status === status) : all;
+  }
+
+  updateGoal(id: string, fields: { title?: string; description?: string | null; context?: string | null; status?: Goal['status'] }): Goal {
+    const goal = this.getGoal(id);
+    if (fields.title !== undefined) goal.title = fields.title;
+    if (fields.description !== undefined) goal.description = fields.description;
+    if (fields.context !== undefined) goal.context = fields.context;
+    if (fields.status !== undefined) goal.status = fields.status;
+    goal.updatedAt = new Date().toISOString();
+    return goal;
+  }
+
+  archiveGoal(id: string): Goal {
+    return this.updateGoal(id, { status: 'archived' });
+  }
+
+  // ── Plan CRUD ──────────────────────────────────────────────
+
+  createPlan(goalId: string, summary: string, steps: PlanStep[], version = 1): Plan {
+    const timestamp = new Date().toISOString();
+    const plan: Plan = {
+      id: this.createId('plan'),
+      goalId,
+      version,
+      summary,
+      steps,
+      status: 'draft',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.plans.set(plan.id, plan);
+    return plan;
+  }
+
+  getPlan(id: string): Plan {
+    const plan = this.plans.get(id);
+    if (!plan) {
+      throw controlServiceError('getPlan', `Plan not found: ${id}`);
+    }
+    return plan;
+  }
+
+  getPlansForGoal(goalId: string): Plan[] {
+    return Array.from(this.plans.values()).filter((p) => p.goalId === goalId);
+  }
+
+  updatePlanSteps(planId: string, edits: Array<{ stepId: string; title?: string; intent?: string }>): Plan {
+    const plan = this.getPlan(planId);
+    if (plan.status !== 'draft') {
+      throw controlServiceError('updatePlanSteps', 'Can only edit plans in draft status');
+    }
+
+    // apply edits to steps
+    for (const edit of edits) {
+      const step = plan.steps.find((s) => s.id === edit.stepId);
+      if (step) {
+        if (edit.title !== undefined) step.title = edit.title;
+        if (edit.intent !== undefined) step.intent = edit.intent;
+      }
+    }
+
+    // Create a new version: mark old as superseded, create new plan
+    plan.status = 'superseded';
+    plan.updatedAt = new Date().toISOString();
+
+    const newPlan = this.createPlan(plan.goalId, plan.summary, plan.steps.map((s) => ({ ...s })), plan.version + 1);
+    return newPlan;
+  }
+
+  // ── Plan drafting (involves planner) ─────────────────────
+
+  async draftPlanForGoal(goalId: string, options: DraftPlanOptions): Promise<Plan> {
+    const goal = this.getGoal(goalId);
+    const plannerModel = options.plannerModel.trim();
+    if (!plannerModel) {
+      throw controlServiceError('draftPlanForGoal', 'Planner model is required for this request.');
+    }
+    const modelTier = options.modelTier?.trim() || undefined;
+    const planDraft = await this.planner.draft(goal.title, options.browserConfig, plannerModel, modelTier);
+    const plan = this.createPlan(goalId, planDraft.summary, planDraft.steps);
+    return plan;
+  }
+
+  // ── Backward compat helpers ───────────────────────────────
+
+  getGoalForTask(taskId: string): Goal {
+    const task = this.getTask(taskId);
+    return this.getGoal(task.goalId);
+  }
+
+  getPlanForTask(taskId: string): Plan {
+    const task = this.getTask(taskId);
+    if (!task.planId) {
+      throw controlServiceError('getPlanForTask', `Task ${taskId} has no plan`);
+    }
+    return this.getPlan(task.planId);
   }
 
   getConversation(conversationId: string): Conversation {
@@ -1926,8 +2122,25 @@ export class InMemoryControlService extends EventEmitter {
         .filter((task) => task.conversationId === conversationId)
         .map((task) => task.id)
     );
+
+    // Clean up goals and plans referenced by deleted tasks
+    const goalIds = new Set<string>();
+    const planIds = new Set<string>();
+    for (const task of this.tasks.values()) {
+      if (task.conversationId === conversationId) {
+        goalIds.add(task.goalId);
+        if (task.planId) planIds.add(task.planId);
+      }
+    }
+
     for (const taskId of taskIds) {
       this.tasks.delete(taskId);
+    }
+    for (const goalId of goalIds) {
+      this.goals.delete(goalId);
+    }
+    for (const planId of planIds) {
+      this.plans.delete(planId);
     }
     for (let index = this.events.length - 1; index >= 0; index -= 1) {
       const event = this.events[index];
@@ -1998,10 +2211,17 @@ export class InMemoryControlService extends EventEmitter {
 
     const modelTier = options.modelTier?.trim() || null;
     const planDraft = await this.planner.draft(content, options.browserConfig, plannerModel, modelTier || undefined);
+
+    // Create Goal and Plan entities
+    const goal = this.createGoal(content, null, options.context || null);
+    const plan = this.createPlan(goal.id, planDraft.summary, planDraft.steps);
+
     const task: Task = {
       id: this.createId('task'),
       conversationId,
       goal: content,
+      goalId: goal.id,
+      planId: plan.id,
       context: options.context || null,
       status: 'draft',
       planDraft,
@@ -2058,6 +2278,11 @@ export class InMemoryControlService extends EventEmitter {
 
     const modelTier = options.modelTier?.trim() || null;
     const planDraft = await this.planner.replanRemaining(taskId, task, plannerModel, modelTier || undefined);
+
+    // Create new Plan entity
+    const plan = this.createPlan(task.goalId, planDraft.summary, planDraft.steps);
+
+    task.planId = plan.id;
     task.planDraft = planDraft;
     task.plannerModel = plannerModel;
     task.modelTier = modelTier;
@@ -2231,6 +2456,20 @@ export class InMemoryControlService extends EventEmitter {
       });
     });
 
+    bridge.on('screenshot', (data: { base64: string; mimeType: string; viewport: { width: number; height: number }; reason: string }) => {
+      this.recordEvent({
+        taskId,
+        type: 'task.execution.screenshot',
+        source: task.executionSource ?? 'service',
+        data: {
+          base64: data.base64,
+          mimeType: data.mimeType,
+          viewport: data.viewport,
+          reason: data.reason,
+        },
+      });
+    });
+
     if (this.executionDriver instanceof AgentLoopExecutionDriver) {
       this.executionDriver.setEventEmitter(bridge);
     }
@@ -2300,6 +2539,18 @@ export class InMemoryControlService extends EventEmitter {
       source: 'service',
       data: {},
     });
+    return task;
+  }
+
+  updateTaskModel(
+    taskId: string,
+    params: { plannerModel?: string; executorModel?: string; modelTier?: string }
+  ): Task {
+    const task = this.getTask(taskId);
+    if (params.plannerModel?.trim()) task.plannerModel = params.plannerModel.trim();
+    if (params.executorModel?.trim()) task.executorModel = params.executorModel.trim();
+    if (params.modelTier?.trim()) task.modelTier = params.modelTier.trim();
+    task.updatedAt = new Date().toISOString();
     return task;
   }
 

@@ -7,10 +7,13 @@ const DEFAULT_PREVIEW_RATIO = 0.62;
 const state = {
   conversations: [],
   tasks: [],
+  goals: [],
   currentConversationId: null,
   currentTaskId: null,
   lastAssistantNotice: null,
   browserRuntimeDefaults: null,
+  iterations: [],
+  sessionTokens: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
 };
 
 const elements = {
@@ -34,6 +37,14 @@ const elements = {
   runtimeDefaultsMessage: document.getElementById('runtimeDefaultsMessage'),
   extensionEnabled: document.getElementById('extensionEnabled'),
   previewEnabled: document.getElementById('previewEnabled'),
+  // Iterations
+  iterationsRail: document.getElementById('iterationsRail'),
+  iterationsProgress: document.getElementById('iterationsProgress'),
+  iterationsList: document.getElementById('iterationsList'),
+  iterationsTokens: document.getElementById('iterationsTokens'),
+  // Goals
+  goalsList: document.getElementById('goalsList'),
+  newGoalButton: document.getElementById('newGoalButton'),
 };
 
 async function ensureManagedConversationId(conversations, createConversation) {
@@ -63,6 +74,9 @@ function getBrowserConfig() {
   };
 }
 
+let lastStreamPort = 9223;
+let lastTaskStatus = null;
+
 async function fetchState() {
   const response = await fetch(`${API_BASE}/state`);
   if (!response.ok) {
@@ -75,6 +89,27 @@ async function fetchState() {
     state.conversations,
     createConversationRecord
   );
+
+  // Capture stream port from API
+  if (typeof payload.streamPort === 'number') {
+    lastStreamPort = payload.streamPort;
+  }
+
+  // Fetch goals
+  try {
+    const goalsRes = await fetch(`${API_BASE}/goals`);
+    if (goalsRes.ok) {
+      state.goals = await goalsRes.json();
+    }
+  } catch { /* ignore */ }
+
+  // Refresh preview when task transitions to running
+  const activeTask = payload.activeTask || null;
+  if (activeTask && activeTask.status === 'running' && lastTaskStatus !== 'running') {
+    refreshPreviewPanel(lastStreamPort);
+  }
+  lastTaskStatus = activeTask?.status ?? null;
+
   render();
 }
 
@@ -195,13 +230,54 @@ function renderTask(task) {
   elements.taskTitle.textContent = `Task ${task.status}`;
   elements.taskSummary.textContent = task.resultSummary ?? task.planDraft.summary;
   elements.taskSteps.innerHTML = '';
+  const isDraft = task.status === 'draft';
   for (const step of task.planDraft.steps) {
     const item = document.createElement('li');
-    item.innerHTML = `
-      <span class="task-step-title">${step.title}</span>
-      <span class="task-step-intent">${step.intent}</span>
-    `;
+    item.className = 'task-step-item';
+    if (isDraft) {
+      item.innerHTML = `
+        <input class="task-step-title-input" value="${escapeAttr(step.title)}" data-step-id="${step.id}" data-field="title" placeholder="Step title" />
+        <input class="task-step-intent-input" value="${escapeAttr(step.intent)}" data-step-id="${step.id}" data-field="intent" placeholder="Step intent" />
+        <button class="ghost-button step-save-btn" data-step-id="${step.id}" style="font-size:0.8em">Save</button>
+      `;
+    } else {
+      item.innerHTML = `
+        <span class="task-step-title">${escapeHtml(step.title)}</span>
+        <span class="task-step-intent">${escapeHtml(step.intent)}</span>
+      `;
+    }
     elements.taskSteps.appendChild(item);
+  }
+
+  // Handle plan edit saves
+  if (isDraft) {
+    elements.taskSteps.querySelectorAll('.step-save-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const stepId = btn.dataset.stepId;
+        const titleInput = elements.taskSteps.querySelector(`input[data-step-id="${stepId}"][data-field="title"]`);
+        const intentInput = elements.taskSteps.querySelector(`input[data-step-id="${stepId}"][data-field="intent"]`);
+        const edits = [{
+          stepId,
+          title: titleInput ? titleInput.value : undefined,
+          intent: intentInput ? intentInput.value : undefined,
+        }];
+        try {
+          const res = await fetch(`${API_BASE}/plans/${task.planId}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ edits }),
+          });
+          if (res.ok) {
+            await fetchState();
+          } else {
+            const err = await res.json();
+            alert('Failed to save: ' + (err.error || 'unknown error'));
+          }
+        } catch (err) {
+          alert('Failed to save: ' + err.message);
+        }
+      });
+    });
   }
 
   elements.approveButton.disabled = task.status !== 'draft';
@@ -217,6 +293,151 @@ function render() {
     : 'Auto-managed conversation';
   renderMessages(conversation, task);
   renderTask(task);
+  renderIterations();
+  renderGoals();
+}
+
+function renderGoals() {
+  if (!elements.goalsList) return;
+  elements.goalsList.innerHTML = '';
+  if (!state.goals || state.goals.length === 0) {
+    elements.goalsList.innerHTML = '<p style="color:var(--text-dim);font-size:0.85em;margin:0">No goals yet. Create one to get started.</p>';
+    return;
+  }
+  for (const goal of state.goals) {
+    const card = document.createElement('div');
+    card.className = 'goal-card';
+    const statusClass = goal.status === 'active' ? 'status-active' : goal.status === 'archived' ? 'status-archived' : '';
+    card.innerHTML = `
+      <div class="goal-card-header">
+        <span class="goal-status-dot ${statusClass}"></span>
+        <span class="goal-title">${escapeHtml(goal.title)}</span>
+      </div>
+      <div class="goal-card-meta">${goal.status} · ${goal.createdAt.slice(0, 10)}</div>
+    `;
+    card.addEventListener('click', () => {
+      // Find the task associated with this goal
+      const task = state.tasks.find(t => t.goalId === goal.id);
+      if (task) {
+        state.currentTaskId = task.id;
+        render();
+      }
+    });
+    elements.goalsList.appendChild(card);
+  }
+}
+
+function createGoalFromDialog() {
+  const title = prompt('Enter goal title:');
+  if (!title || !title.trim()) return;
+  const description = prompt('Enter goal description (optional):');
+  fetch(`${API_BASE}/goals`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: title.trim(), description: description?.trim() || null }),
+  })
+    .then(r => r.json())
+    .then(() => fetchState())
+    .catch(err => console.error('Failed to create goal:', err));
+}
+
+function renderIterations() {
+  const its = state.iterations;
+  const task = getCurrentTask();
+
+  if (!task || its.length === 0) {
+    if (elements.iterationsRail) elements.iterationsRail.hidden = true;
+    return;
+  }
+
+  if (elements.iterationsRail) elements.iterationsRail.hidden = false;
+
+  // Progress
+  if (elements.iterationsProgress) {
+    if (task.currentStepIndex != null && task.planDraft?.steps?.length) {
+      const total = task.planDraft.steps.length;
+      elements.iterationsProgress.textContent = `Step ${task.currentStepIndex + 1}/${total} · ${its.length} iter`;
+    } else {
+      elements.iterationsProgress.textContent = `${its.length} iterations`;
+    }
+  }
+
+  // Cards
+  if (elements.iterationsList) {
+    elements.iterationsList.innerHTML = '';
+    const showIts = its.slice(-15);
+    for (const iter of showIts) {
+      const card = document.createElement('div');
+      card.className = 'iter-card';
+
+      // Header
+      const header = document.createElement('div');
+      header.className = 'iter-card-header';
+      header.innerHTML = `
+        <span class="iter-card-num">#${iter.iteration}</span>
+        <span class="iter-card-url" title="${escapeAttr(iter.url || iter.title || '')}">${escapeHtml(iter.url || iter.title || '(page)')}</span>
+        ${iter.tokenUsage ? `<span class="iter-card-tokens">P:${iter.tokenUsage.promptTokens} C:${iter.tokenUsage.completionTokens}</span>` : ''}
+      `;
+      card.appendChild(header);
+
+      // Body
+      const body = document.createElement('div');
+      body.className = 'iter-card-body';
+      body.innerHTML = `
+        <span class="iter-phase-label"><span class="iter-phase-dot observe"></span>Observe</span>
+        <span class="iter-phase-value">${escapeHtml(iter.title || iter.url || '...')}</span>
+        <span class="iter-phase-label"><span class="iter-phase-dot decide"></span>Decide</span>
+        <span class="iter-phase-value">${escapeHtml(iter.actionLabel || '...')}</span>
+      `;
+      card.appendChild(body);
+
+      // Error
+      if (iter.error) {
+        const err = document.createElement('div');
+        err.className = 'iter-card-error';
+        err.textContent = iter.error;
+        card.appendChild(err);
+      }
+
+      // LLM completion
+      if (iter.rawCompletion) {
+        const llm = document.createElement('div');
+        llm.className = 'iter-card-llm';
+        llm.textContent = iter.rawCompletion.slice(0, 100);
+        llm.title = 'Click to expand';
+        llm.addEventListener('click', () => {
+          try {
+            const p = JSON.parse(iter.rawCompletion);
+            alert(JSON.stringify(p, null, 2));
+          } catch {
+            alert(iter.rawCompletion);
+          }
+        });
+        card.appendChild(llm);
+      }
+
+      elements.iterationsList.appendChild(card);
+    }
+  }
+
+  // Token summary
+  if (elements.iterationsTokens) {
+    const st = state.sessionTokens;
+    if (st.totalTokens > 0) {
+      elements.iterationsTokens.hidden = false;
+      elements.iterationsTokens.textContent = `Session tokens — P:${st.promptTokens} C:${st.completionTokens} T:${st.totalTokens}`;
+    } else {
+      elements.iterationsTokens.hidden = true;
+    }
+  }
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escapeAttr(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 async function createConversationRecord() {
@@ -249,6 +470,8 @@ async function sendPrompt() {
 
   state.currentTaskId = payload.id;
   state.lastAssistantNotice = null;
+  state.iterations = [];
+  state.sessionTokens = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
   elements.promptInput.value = '';
   await fetchState();
 }
@@ -263,6 +486,8 @@ async function approveTask() {
   }
   state.currentTaskId = payload.id;
   state.lastAssistantNotice = null;
+  state.iterations = [];
+  state.sessionTokens = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
   await fetchState();
 }
 
@@ -299,18 +524,19 @@ function showAssistantError(error, fallbackMessage) {
   render();
 }
 
-function buildPreviewUrl() {
-  return `./preview.html?embedded=1&t=${Date.now()}`;
+function buildPreviewUrl(streamPort) {
+  return `./preview.html?embedded=1&streamPort=${streamPort}&t=${Date.now()}`;
 }
 
 function initializePreviewPanel() {
   if (!elements.previewFrame) return;
-  elements.previewFrame.src = buildPreviewUrl();
+  // Default to 9223 until we get the real port from API
+  elements.previewFrame.src = buildPreviewUrl(9223);
 }
 
-function refreshPreviewPanel() {
+function refreshPreviewPanel(streamPort) {
   if (!elements.previewFrame) return;
-  elements.previewFrame.src = buildPreviewUrl();
+  elements.previewFrame.src = buildPreviewUrl(streamPort);
   elements.previewPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 }
 
@@ -411,9 +637,78 @@ function connectEvents() {
   events.onerror = () => {
     elements.connectionStatus.textContent = 'Disconnected';
   };
-  events.onmessage = async () => {
-    await fetchState();
+  events.onmessage = (event) => {
+    try {
+      const parsed = JSON.parse(event.data);
+      handleSSEEvent(parsed);
+    } catch { /* skip invalid JSON */ }
+    fetchState().catch(() => {});
   };
+}
+
+function handleSSEEvent(event) {
+  const isActive = event.taskId === state.currentTaskId;
+  if (!isActive) return;
+
+  switch (event.type) {
+    case 'task.execution.iteration.started': {
+      const data = event.data || {};
+      state.iterations = [
+        ...state.iterations,
+        {
+          iteration: data.iteration ?? state.iterations.length,
+          url: data.url ?? '',
+          title: data.title ?? '',
+          actionLabel: event.summary?.label ?? undefined,
+          actionDetails: event.summary?.url ?? undefined,
+          rawCompletion: undefined,
+          tokenUsage: undefined,
+          error: undefined,
+        },
+      ];
+      renderIterations();
+      break;
+    }
+    case 'task.execution.llm.completion': {
+      const data = event.data || {};
+      const updated = state.iterations.map((it) => ({ ...it }));
+      const last = updated[updated.length - 1];
+      if (last) {
+        if (data.content) last.rawCompletion = data.content;
+        if (data.usage) last.tokenUsage = data.usage;
+      }
+      state.iterations = updated;
+      if (data.usage) {
+        state.sessionTokens = {
+          promptTokens: state.sessionTokens.promptTokens + (data.usage.promptTokens || 0),
+          completionTokens: state.sessionTokens.completionTokens + (data.usage.completionTokens || 0),
+          totalTokens: state.sessionTokens.totalTokens + (data.usage.totalTokens || 0),
+        };
+      }
+      renderIterations();
+      break;
+    }
+    case 'task.execution.iteration.completed': {
+      const updated = state.iterations.map((it) => ({ ...it }));
+      const last = updated[updated.length - 1];
+      if (last && event.summary) {
+        if (event.summary.label) last.actionLabel = event.summary.label;
+        if (event.summary.url != null) last.actionDetails = event.summary.url;
+        if (event.summary.error) last.error = event.summary.error;
+      }
+      state.iterations = updated;
+      renderIterations();
+      break;
+    }
+    case 'task.drafted':
+    case 'task.running':
+    case 'task.completed':
+    case 'task.failed':
+    case 'task.cancelled':
+    case 'task.handoff':
+      // fetchState handles status changes
+      break;
+  }
 }
 
 elements.sendButton.addEventListener('click', () => {
@@ -440,7 +735,11 @@ elements.resumeButton.addEventListener('click', () => {
   });
 });
 
-elements.openPreviewButton.addEventListener('click', refreshPreviewPanel);
+elements.openPreviewButton.addEventListener('click', () => refreshPreviewPanel(lastStreamPort));
+
+if (elements.newGoalButton) {
+  elements.newGoalButton.addEventListener('click', createGoalFromDialog);
+}
 
 initializePreviewPanel();
 initializePreviewResize();

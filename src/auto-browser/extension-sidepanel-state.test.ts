@@ -4,6 +4,8 @@ import {
   filterTaskEvents,
   getActiveLlmPreset,
   getConversationTitle,
+  getModelHandoffSignal,
+  getPlanSignal,
   normalizeLlmPreferences,
   resolveInitialConversationId,
   selectCurrentConversation,
@@ -168,6 +170,173 @@ describe('extension sidepanel state helpers', () => {
     );
 
     expect(events.map((event) => event.id)).toEqual(['evt_3', 'evt_1']);
+  });
+
+  it('returns a plan signal only when the planner produced a draft or replan for the task', () => {
+    const task = {
+      id: 'task_plan',
+      goal: 'Check my inbox',
+      status: 'draft',
+      planDraft: {
+        summary: 'Open mail and inspect the inbox',
+        steps: [{ id: 'step_1', title: 'Open mail', intent: 'Navigate to the inbox' }],
+      },
+    };
+
+    expect(
+      getPlanSignal(task, [
+        {
+          id: 'evt_1',
+          taskId: 'task_plan',
+          type: 'task.drafted',
+          createdAt: '2026-05-15T01:00:00.000Z',
+        },
+      ])
+    ).toMatchObject({
+      taskId: 'task_plan',
+      badge: 'Draft',
+      actionable: true,
+      summary: 'Open mail and inspect the inbox',
+    });
+
+    expect(
+      getPlanSignal(
+        { ...task, status: 'running' },
+        [
+          {
+            id: 'evt_2',
+            taskId: 'task_plan',
+            type: 'task.replanned',
+            createdAt: '2026-05-15T01:02:00.000Z',
+          },
+        ]
+      )
+    ).toMatchObject({ badge: 'Replanned', actionable: false });
+
+    expect(
+      getPlanSignal(task, [
+        {
+          id: 'evt_other',
+          taskId: 'task_other',
+          type: 'task.drafted',
+          createdAt: '2026-05-15T01:00:00.000Z',
+        },
+      ])
+    ).toBeNull();
+  });
+
+  it('returns a handoff signal for explicit executor model handoff actions', () => {
+    const task = {
+      id: 'task_handoff',
+      status: 'handoff',
+      resultSummary: 'Two-factor code is required',
+    };
+
+    expect(
+      getModelHandoffSignal(task, [
+        {
+          id: 'evt_1',
+          taskId: 'task_handoff',
+          type: 'task.execution.iteration.completed',
+          createdAt: '2026-05-15T01:00:00.000Z',
+          summary: {
+            action: 'handoff',
+            label: 'Request handoff',
+            reason: 'Two-factor code is required on the verification page',
+          },
+          data: {},
+        },
+      ])
+    ).toMatchObject({
+      taskId: 'task_handoff',
+      title: '需要验证码操作',
+      reason: 'Two-factor code is required on the verification page',
+    });
+
+    expect(
+      getModelHandoffSignal(task, [
+        {
+          id: 'evt_2',
+          taskId: 'task_handoff',
+          type: 'task.execution.llm.completion',
+          createdAt: '2026-05-15T01:01:00.000Z',
+          data: { content: '{"action":"handoff","reason":"Login requires human approval"}' },
+        },
+      ])
+    ).toMatchObject({ title: '需要人工操作', reason: 'Login requires human approval' });
+  });
+
+  it('does not treat permission blocks, generic failures, or iteration budget handoffs as model handoff prompts', () => {
+    const task = {
+      id: 'task_blocked',
+      status: 'blocked',
+      resultSummary: 'Permission required for https://example.test',
+    };
+
+    expect(
+      getModelHandoffSignal(task, [
+        {
+          id: 'evt_permission',
+          taskId: 'task_blocked',
+          type: 'task.execution.blocked',
+          createdAt: '2026-05-15T01:00:00.000Z',
+          data: { message: 'Permission required for https://example.test' },
+        },
+      ])
+    ).toBeNull();
+
+    expect(
+      getModelHandoffSignal(
+        { ...task, status: 'handoff', resultSummary: 'Task paused after exceeding 2 iterations' },
+        [
+          {
+            id: 'evt_budget',
+            taskId: 'task_blocked',
+            type: 'task.execution.completed',
+            createdAt: '2026-05-15T01:01:00.000Z',
+            summary: { action: 'handoff', label: 'Request handoff' },
+            data: { message: 'Task paused after exceeding 2 iterations' },
+          },
+        ]
+      )
+    ).toBeNull();
+
+    expect(
+      getModelHandoffSignal(
+        { ...task, status: 'failed', resultSummary: 'Login requires human approval' },
+        [
+          {
+            id: 'evt_failed',
+            taskId: 'task_blocked',
+            type: 'task.execution.llm.completion',
+            createdAt: '2026-05-15T01:02:00.000Z',
+            data: { content: '{"action":"handoff","reason":"Login requires human approval"}' },
+          },
+        ]
+      )
+    ).toBeNull();
+
+    expect(
+      getModelHandoffSignal(
+        { ...task, status: 'running', resultSummary: null },
+        [
+          {
+            id: 'evt_old_handoff',
+            taskId: 'task_blocked',
+            type: 'task.execution.llm.completion',
+            createdAt: '2026-05-15T01:02:00.000Z',
+            data: { content: '{"action":"handoff","reason":"Login requires human approval"}' },
+          },
+          {
+            id: 'evt_new_run',
+            taskId: 'task_blocked',
+            type: 'task.running',
+            createdAt: '2026-05-15T01:03:00.000Z',
+            data: { currentStepIndex: 0 },
+          },
+        ]
+      )
+    ).toBeNull();
   });
 
   it('migrates legacy model preferences to a default llm preset', () => {

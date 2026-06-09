@@ -17,6 +17,28 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });
 
+// ── Persistent execution: keep service worker alive during tasks ──
+const KEEPALIVE_ALARM = 'auto-browser-keepalive';
+let keepaliveActive = false;
+
+function startKeepalive() {
+  if (keepaliveActive) return;
+  keepaliveActive = true;
+  chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.33 }); // ~20 seconds
+}
+
+function stopKeepalive() {
+  keepaliveActive = false;
+  chrome.alarms.clear(KEEPALIVE_ALARM).catch(() => {});
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === KEEPALIVE_ALARM && session.status === 'running') {
+    // Heartbeat — keeps the service worker alive
+    console.debug('[auto-browser] keepalive heartbeat, task:', session.taskId);
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   handleRuntimeMessage(message)
     .then((result) => sendResponse({ ok: true, ...result }))
@@ -120,6 +142,7 @@ async function startTask(payload) {
     lastError: null,
   });
   actionHistory.length = 0;
+  startKeepalive();
   emitSession();
 
   if (tab.id) {
@@ -190,6 +213,14 @@ async function resumeExtensionExecution() {
       refs: observation?.refs,
     });
     repeatedObservationCount = observationSignature === previousObservationSignature ? repeatedObservationCount + 1 : 0;
+    // Notify sidepanel of iteration start
+    notifySidepanel({
+      type: 'execution_event',
+      event: {
+        type: 'iteration.started',
+        data: { iteration: loops, url: observation?.url, title: observation?.title },
+      },
+    }).catch(() => undefined);
     previousObservationSignature = observationSignature;
     const visualReason =
       pendingVisualReason || getVisualObservationReason(session.goal || '', observation, repeatedObservationCount);
@@ -217,11 +248,36 @@ async function resumeExtensionExecution() {
         return { session };
       }
       observation.visual = visual;
+      // Notify sidepanel of screenshot
+      notifySidepanel({
+        type: 'execution_event',
+        event: {
+          type: 'screenshot',
+          data: {
+            base64: visual.base64,
+            mimeType: visual.mimeType,
+            viewport: visual.viewport,
+            reason: visualReason,
+          },
+        },
+      }).catch(() => undefined);
     }
     const action = await fetchJson(`/tasks/${session.taskId}/decide`, {
       method: 'POST',
       body: JSON.stringify({ observation, history: actionHistory.slice(-8) }),
     });
+
+    // Notify sidepanel of LLM decision
+    notifySidepanel({
+      type: 'execution_event',
+      event: {
+        type: 'llm.completion',
+        data: {
+          content: typeof action === 'object' ? JSON.stringify(action) : String(action),
+          label: action?.label || action?.action,
+        },
+      },
+    }).catch(() => undefined);
 
     await fetchJson(`/tasks/${session.taskId}/report`, {
       method: 'POST',
@@ -251,6 +307,7 @@ async function resumeExtensionExecution() {
         }),
       });
       session = reduceSession(session, { status: 'completed', stepLabel: action.label || 'Finished' });
+      stopKeepalive();
       emitSession();
       return { session };
     }
@@ -267,6 +324,7 @@ async function resumeExtensionExecution() {
         }),
       });
       session = reduceSession(session, { status: 'blocked', lastError: action.reason });
+      stopKeepalive();
       emitSession();
       return { session };
     }
@@ -285,6 +343,19 @@ async function resumeExtensionExecution() {
     }
     actionHistory.push({ action, outcome: runResult.outcome, observedAt: new Date().toISOString() });
 
+    // Notify sidepanel of iteration completion
+    notifySidepanel({
+      type: 'execution_event',
+      event: {
+        type: 'iteration.completed',
+        data: {
+          label: runResult.outcome?.label || action.label || action.action,
+          url: observation?.url,
+          error: runResult.outcome?.status === 'failed' ? runResult.outcome?.error : undefined,
+        },
+      },
+    }).catch(() => undefined);
+
     await fetchJson(`/tasks/${session.taskId}/report`, {
       method: 'POST',
       body: JSON.stringify({
@@ -300,6 +371,7 @@ async function resumeExtensionExecution() {
     }
   }
 
+  stopKeepalive();
   throw new Error('Extension execution exceeded 20 decision loops');
 }
 

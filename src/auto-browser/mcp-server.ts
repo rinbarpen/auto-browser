@@ -335,6 +335,194 @@ export function registerAllTools(server: McpServer, service: InMemoryControlServ
     },
   );
 
+  // ── Goal MCP tools ────────────────────────────────────────
+
+  server.registerTool(
+    'auto-browser_create_goal',
+    {
+      description: 'Create a new browser automation goal without drafting a plan. Use list_goals to find it later.',
+      inputSchema: z.object({
+        title: z.string().describe('Goal title describing what to accomplish'),
+        description: z.string().optional().describe('Optional goal description or details'),
+        context: z.string().optional().describe('Optional context to help the planner understand the task'),
+      }),
+    },
+    async (args) => {
+      try {
+        const goal = service.createGoal(args.title, args.description, args.context);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(goal, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'auto-browser_list_goals',
+    {
+      description: 'List all goals. Optionally filter by status (active, completed, archived).',
+      inputSchema: z.object({
+        status: z.enum(['active', 'completed', 'archived']).optional().describe('Filter by goal status'),
+      }),
+    },
+    async (args) => {
+      try {
+        const goals = service.getGoals(args.status);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(goals, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'auto-browser_get_goal',
+    {
+      description: 'Get a specific goal by ID, including its description, context, and status.',
+      inputSchema: z.object({
+        goalId: z.string().describe('The goal ID'),
+      }),
+    },
+    async (args) => {
+      try {
+        const goal = service.getGoal(args.goalId);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(goal, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'auto-browser_archive_goal',
+    {
+      description: 'Archive a goal. This marks it as archived without deleting it.',
+      inputSchema: z.object({
+        goalId: z.string().describe('The goal ID to archive'),
+      }),
+    },
+    async (args) => {
+      try {
+        const goal = service.archiveGoal(args.goalId);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(goal, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  // ── Plan MCP tools ────────────────────────────────────────
+
+  server.registerTool(
+    'auto-browser_create_plan',
+    {
+      description: 'Draft a plan for a goal using the LLM planner. Returns the plan with steps.',
+      inputSchema: z.object({
+        goalId: z.string().describe('The goal ID to draft a plan for'),
+        plannerModel: z.string().optional().describe('Override the default planner model ID'),
+        modelTier: z.string().optional().describe('Model tier: standard, premium, or economy'),
+      }),
+    },
+    async (args) => {
+      try {
+        const plan = await service.draftPlanForGoal(args.goalId, {
+          browserConfig: {
+            mode: 'managed',
+            browserFamily: 'chromium',
+            executablePath: '',
+            profilePath: '',
+            cookiesPath: '',
+            credentialsPath: '',
+            launchMode: 'auto',
+            extensionEnabled: false,
+            previewEnabled: false,
+            cdpUrl: '',
+          },
+          plannerModel: args.plannerModel ?? process.env.AUTO_BROWSER_PLANNER_MODEL ?? '',
+          modelTier: args.modelTier ?? process.env.AUTO_BROWSER_MODEL_TIER ?? '',
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(plan, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'auto-browser_list_plans',
+    {
+      description: 'List all plan versions for a specific goal.',
+      inputSchema: z.object({
+        goalId: z.string().describe('The goal ID to list plans for'),
+      }),
+    },
+    async (args) => {
+      try {
+        const plans = service.getPlansForGoal(args.goalId);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(plans, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'auto-browser_get_plan',
+    {
+      description: 'Get a specific plan by ID, including its version, summary, and all steps.',
+      inputSchema: z.object({
+        planId: z.string().describe('The plan ID'),
+      }),
+    },
+    async (args) => {
+      try {
+        const plan = service.getPlan(args.planId);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(plan, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'auto-browser_edit_plan',
+    {
+      description: 'Edit plan steps. Creates a new version of the plan with the edits applied.',
+      inputSchema: z.object({
+        planId: z.string().describe('The plan ID to edit'),
+        edits: z.array(z.object({
+          stepId: z.string().describe('The step ID to edit'),
+          title: z.string().optional().describe('New title for the step'),
+          intent: z.string().optional().describe('New intent for the step'),
+        })).describe('Array of step edits'),
+      }),
+    },
+    async (args) => {
+      try {
+        const plan = service.updatePlanSteps(args.planId, args.edits);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(plan, null, 2) }],
+        } satisfies CallToolResult;
+      } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
   server.registerTool(
     'auto-browser_get_cookies',
     {

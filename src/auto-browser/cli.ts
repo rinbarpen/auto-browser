@@ -7,7 +7,7 @@ import type { BrowserRuntimeConfig, Task } from './control-service.js';
 import { extractErrorContext, formatError, getErrorProblem, isStructuredErrorPayload, wrapError } from './error-context.js';
 import { LlmRouterClient } from './llm-router.js';
 
-type CommandName = 'serve' | 'state' | 'submit' | 'approve' | 'handoff' | 'resume' | 'run' | 'completion';
+type CommandName = 'serve' | 'state' | 'submit' | 'approve' | 'handoff' | 'resume' | 'run' | 'completion' | 'goal' | 'plan';
 type ParsedArguments = {
   command: CommandName;
   options: Record<string, string | boolean>;
@@ -98,6 +98,16 @@ Commands:
   resume --task-id <id> [--json]         Resume a handed-off task
   completion <bash|zsh>                  Print a shell completion script
 
+  goal create --title "..." [options]    Create a new goal (without drafting a plan)
+  goal list [--status <status>] [--json] List all goals
+  goal show --goal-id <id> [--json]      Show goal details
+  goal archive --goal-id <id>            Archive a goal
+
+  plan create --goal-id <id> [--json]    Draft a plan for a goal
+  plan list --goal-id <id> [--json]      List plans for a goal
+  plan show --plan-id <id> [--json]      Show plan details and version info
+  plan edit --plan-id <id> [options]     Edit plan steps (creates new version)
+
 Common options:
   --port <n>
   --planner-model <id>
@@ -107,9 +117,21 @@ Common options:
   --router-api-key <key>
   --json
 
+Goal options:
+  --title "<text>"        Goal title
+  --description "<text>"  Goal description
+  --context "<text>"      Goal reference context
+
+Plan edit options:
+  --step-id <id>          Step to edit (repeatable)
+  --title "<text>"        New step title
+  --intent "<text>"       New step intent
+
 Examples:
   auto-browser run --goal "open example.com and tell me the title" \\
     --planner-model openai/gpt-5.4 --executor-model openai/gpt-5.4
+  auto-browser goal create --title "Search docs" --description "Find API references"
+  auto-browser plan create --goal-id <id> --json
   auto-browser submit --goal "log in and stop before submit" --json
   auto-browser completion bash
 
@@ -141,7 +163,7 @@ export function parseCliArgs(argv: string[]): ParsedArguments {
     throw new CliError(HELP_TEXT.trim(), CLI_EXIT_CODES.usage);
   }
   const command = commandToken as CommandName | undefined;
-  if (!command || !['serve', 'state', 'submit', 'approve', 'handoff', 'resume', 'run', 'completion'].includes(command)) {
+  if (!command || !['serve', 'state', 'submit', 'approve', 'handoff', 'resume', 'run', 'completion', 'goal', 'plan'].includes(command)) {
     throw new CliError(HELP_TEXT.trim(), CLI_EXIT_CODES.usage);
   }
 
@@ -433,6 +455,50 @@ function formatStateResult(payload: { conversations: unknown[]; tasks: unknown[]
   return lines.join('\n');
 }
 
+function formatGoalResult(goal: { id: string; title: string; description?: string | null; status: string; createdAt: string }): string {
+  const lines = [
+    `Goal: ${goal.id}`,
+    `Title: ${goal.title}`,
+    `Status: ${goal.status}`,
+    `Created: ${goal.createdAt}`,
+  ];
+  if (goal.description) lines.push(`Description: ${goal.description}`);
+  return lines.join('\n');
+}
+
+function formatGoalListResult(goals: Array<{ id: string; title: string; status: string; createdAt: string }>): string {
+  if (!goals.length) return 'No goals found.';
+  const lines = ['Goals:'];
+  for (const goal of goals) {
+    lines.push(`  ${goal.id}  ${goal.status.padEnd(10)} ${goal.title}  (${goal.createdAt.slice(0, 10)})`);
+  }
+  return lines.join('\n');
+}
+
+function formatPlanResult(plan: { id: string; goalId: string; version: number; summary: string; steps: Array<{ id: string; title: string; intent: string }>; status: string }): string {
+  const lines = [
+    `Plan: ${plan.id}`,
+    `Goal: ${plan.goalId}`,
+    `Version: ${plan.version}`,
+    `Status: ${plan.status}`,
+    `Summary: ${plan.summary}`,
+    'Steps:',
+  ];
+  for (const step of plan.steps) {
+    lines.push(`  ${step.id}  ${step.title} - ${step.intent}`);
+  }
+  return lines.join('\n');
+}
+
+function formatPlanListResult(plans: Array<{ id: string; version: number; status: string; summary: string; createdAt: string }>): string {
+  if (!plans.length) return 'No plans found.';
+  const lines = ['Plans:'];
+  for (const plan of plans) {
+    lines.push(`  ${plan.id}  v${plan.version}  ${plan.status.padEnd(10)} ${plan.summary.slice(0, 60)}  (${plan.createdAt.slice(0, 10)})`);
+  }
+  return lines.join('\n');
+}
+
 async function main(): Promise<void> {
   let activeCommand: CommandName | undefined;
 
@@ -603,6 +669,98 @@ async function main(): Promise<void> {
         }, cliContext('command:resume'));
         outputResult(task, parsed.options.json === true ? JSON.stringify(task, null, 2) : formatTaskResult(task));
         return;
+      }
+      case 'goal': {
+        const sub = String(parsed.positionals[0] ?? '').toLowerCase();
+        if (sub === 'create') {
+          const title = requireStringOption(parsed.options.title, '--title');
+          const description = typeof parsed.options.description === 'string' ? parsed.options.description : undefined;
+          const context = typeof parsed.options.context === 'string' ? parsed.options.context : undefined;
+          const goal = await requestJson(`${getBaseUrl(config)}/goals`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ title, description, context }),
+          }, cliContext('command:goal:create'));
+          outputResult(goal, parsed.options.json === true ? JSON.stringify(goal, null, 2) : formatGoalResult(goal));
+          return;
+        }
+        if (sub === 'list') {
+          const status = typeof parsed.options.status === 'string' ? parsed.options.status : undefined;
+          const url = `${getBaseUrl(config)}/goals${status ? `?status=${encodeURIComponent(status)}` : ''}`;
+          const goals = await requestJson(url, undefined, cliContext('command:goal:list'));
+          outputResult(goals, parsed.options.json === true ? JSON.stringify(goals, null, 2) : formatGoalListResult(goals));
+          return;
+        }
+        if (sub === 'show') {
+          const goalId = requireStringOption(parsed.options.goalId, '--goal-id');
+          const goal = await requestJson(`${getBaseUrl(config)}/goals/${goalId}`, undefined, cliContext('command:goal:show'));
+          outputResult(goal, parsed.options.json === true ? JSON.stringify(goal, null, 2) : formatGoalResult(goal));
+          return;
+        }
+        if (sub === 'archive') {
+          const goalId = requireStringOption(parsed.options.goalId, '--goal-id');
+          const goal = await requestJson(`${getBaseUrl(config)}/goals/${goalId}`, {
+            method: 'DELETE',
+          }, cliContext('command:goal:archive'));
+          outputResult(goal, parsed.options.json === true ? JSON.stringify(goal, null, 2) : formatGoalResult(goal));
+          return;
+        }
+        throw createStructuredCliError(
+          `Unknown goal sub-command: ${sub}. Use: create, list, show, archive`,
+          CLI_EXIT_CODES.usage,
+          'command:goal'
+        );
+      }
+      case 'plan': {
+        const sub = String(parsed.positionals[0] ?? '').toLowerCase();
+        if (sub === 'create') {
+          const goalId = requireStringOption(parsed.options.goalId, '--goal-id');
+          const browserConfig = await resolveBrowserConfig(config, parsed.options);
+          const plan = await requestJson(`${getBaseUrl(config)}/goals/${goalId}/plans`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              plannerModel: config.plannerModel,
+              modelTier: config.modelTier || undefined,
+            }),
+          }, cliContext('command:plan:create'));
+          outputResult(plan, parsed.options.json === true ? JSON.stringify(plan, null, 2) : formatPlanResult(plan));
+          return;
+        }
+        if (sub === 'list') {
+          const goalId = requireStringOption(parsed.options.goalId, '--goal-id');
+          const plans = await requestJson(`${getBaseUrl(config)}/goals/${goalId}/plans`, undefined, cliContext('command:plan:list'));
+          outputResult(plans, parsed.options.json === true ? JSON.stringify(plans, null, 2) : formatPlanListResult(plans));
+          return;
+        }
+        if (sub === 'show') {
+          const planId = requireStringOption(parsed.options.planId, '--plan-id');
+          const plan = await requestJson(`${getBaseUrl(config)}/plans/${planId}`, undefined, cliContext('command:plan:show'));
+          outputResult(plan, parsed.options.json === true ? JSON.stringify(plan, null, 2) : formatPlanResult(plan));
+          return;
+        }
+        if (sub === 'edit') {
+          const planId = requireStringOption(parsed.options.planId, '--plan-id');
+          const stepId = requireStringOption(parsed.options.stepId, '--step-id');
+          const plan = await requestJson(`${getBaseUrl(config)}/plans/${planId}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              edits: [{
+                stepId,
+                title: typeof parsed.options.title === 'string' ? parsed.options.title : undefined,
+                intent: typeof parsed.options.intent === 'string' ? parsed.options.intent : undefined,
+              }],
+            }),
+          }, cliContext('command:plan:edit'));
+          outputResult(plan, parsed.options.json === true ? JSON.stringify(plan, null, 2) : formatPlanResult(plan));
+          return;
+        }
+        throw createStructuredCliError(
+          `Unknown plan sub-command: ${sub}. Use: create, list, show, edit`,
+          CLI_EXIT_CODES.usage,
+          'command:plan'
+        );
       }
       default:
         throw new CliError(HELP_TEXT.trim(), CLI_EXIT_CODES.usage);

@@ -3,7 +3,7 @@
   "name": "Auto Browser",
   "version": "0.2.0",
   "description": "AI-powered browser automation sidebar. Submit tasks, handle CAPTCHA verification, and resume execution — all from the side panel.",
-  "permissions": ["sidePanel", "storage", "tabs", "activeTab", "scripting"],
+  "permissions": ["sidePanel", "storage", "tabs", "activeTab", "scripting", "alarms"],
   "host_permissions": ["http://127.0.0.1:4317/*", "http://localhost:4317/*"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
