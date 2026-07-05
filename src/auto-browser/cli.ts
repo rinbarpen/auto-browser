@@ -7,7 +7,9 @@ import type { BrowserRuntimeConfig, Task } from './control-service.js';
 import { extractErrorContext, formatError, getErrorProblem, isStructuredErrorPayload, wrapError } from './error-context.js';
 import { LlmRouterClient } from './llm-router.js';
 
-type CommandName = 'serve' | 'state' | 'submit' | 'approve' | 'handoff' | 'resume' | 'run' | 'completion' | 'goal' | 'plan';
+const CLI_VERSION = '0.1.0';
+
+type CommandName = 'serve' | 'state' | 'submit' | 'approve' | 'handoff' | 'resume' | 'run' | 'completion' | 'goal' | 'plan' | 'version' | 'skill' | 'eval';
 type ParsedArguments = {
   command: CommandName;
   options: Record<string, string | boolean>;
@@ -96,6 +98,7 @@ Commands:
   approve --task-id <id> [--json]        Approve and run a drafted task
   handoff --task-id <id> [--source cli]  Enter handoff mode
   resume --task-id <id> [--json]         Resume a handed-off task
+  version                                Show CLI version
   completion <bash|zsh>                  Print a shell completion script
 
   goal create --title "..." [options]    Create a new goal (without drafting a plan)
@@ -107,6 +110,13 @@ Commands:
   plan list --goal-id <id> [--json]      List plans for a goal
   plan show --plan-id <id> [--json]      Show plan details and version info
   plan edit --plan-id <id> [options]     Edit plan steps (creates new version)
+
+  skill list [--json]                    List all project skills
+  skill show --skill-path <path> [--json] Show skill file contents
+  skill update --skill-path <path>       Update a skill file
+
+  eval list [--json]                     List available eval tests
+  eval run [--eval-id <id>] [--json]    Run eval tests against the LLM router
 
 Common options:
   --port <n>
@@ -133,10 +143,14 @@ Examples:
   auto-browser goal create --title "Search docs" --description "Find API references"
   auto-browser plan create --goal-id <id> --json
   auto-browser submit --goal "log in and stop before submit" --json
+  auto-browser version
+  auto-browser skill list
+  auto-browser eval list
   auto-browser completion bash
 
 Exit codes:
   0 success
+  1 internal error
   2 usage or unsupported arguments
   3 missing or invalid CLI configuration
   4 control service startup or readiness failure
@@ -162,13 +176,19 @@ export function parseCliArgs(argv: string[]): ParsedArguments {
   if (!commandToken || commandToken === 'help' || commandToken === '--help') {
     throw new CliError(HELP_TEXT.trim(), CLI_EXIT_CODES.usage);
   }
+  if (commandToken === '--version') {
+    throw new CliError(`auto-browser v${CLI_VERSION}`, CLI_EXIT_CODES.success);
+  }
   const command = commandToken as CommandName | undefined;
-  if (!command || !['serve', 'state', 'submit', 'approve', 'handoff', 'resume', 'run', 'completion', 'goal', 'plan'].includes(command)) {
+  if (!command || !['serve', 'state', 'submit', 'approve', 'handoff', 'resume', 'run', 'completion', 'goal', 'plan', 'version', 'skill', 'eval'].includes(command)) {
     throw new CliError(HELP_TEXT.trim(), CLI_EXIT_CODES.usage);
   }
 
   if (rest.includes('--help')) {
     throw new CliError(HELP_TEXT.trim(), CLI_EXIT_CODES.usage);
+  }
+  if (rest.includes('--version')) {
+    throw new CliError(`auto-browser v${CLI_VERSION}`, CLI_EXIT_CODES.success);
   }
 
   const options: Record<string, string | boolean> = {};
@@ -252,7 +272,7 @@ _auto_browser() {
   local cur prev words cword
   _init_completion || return
 
-  local commands="serve state submit run approve handoff resume completion help"
+  local commands="serve state submit run approve handoff resume version skill eval completion help"
   local global_opts="--help --json --port --planner-model --executor-model --model-tier --router-base-url --router-api-key"
 
   if [[ $cword -eq 1 ]]; then
@@ -266,6 +286,15 @@ _auto_browser() {
       ;;
     approve|resume|handoff)
       COMPREPLY=( $(compgen -W "--task-id --json" -- "$cur") )
+      ;;
+    version)
+      COMPREPLY=( $(compgen -W "--json" -- "$cur") )
+      ;;
+    skill)
+      COMPREPLY=( $(compgen -W "list show update --skill-path --json --content" -- "$cur") )
+      ;;
+    eval)
+      COMPREPLY=( $(compgen -W "list run --eval-id --json" -- "$cur") )
       ;;
     submit|run)
       COMPREPLY=( $(compgen -W "--goal --context --conversation-id --browser-family --executable-path --profile-path --cookies-path --credentials-path --headless --headed --extension-enabled --no-extension-enabled --preview-enabled --no-preview-enabled --cloak-humanize --cloak-fingerprint-seed --cloak-timezone --cloak-locale $global_opts" -- "$cur") )
@@ -299,6 +328,9 @@ commands=(
   'handoff:Enter handoff mode'
   'resume:Resume a handed-off task'
   'completion:Print a shell completion script'
+  'version:Show CLI version'
+  'skill:Manage project skills'
+  'eval:Run eval tests'
 )
 
 _arguments \
@@ -360,6 +392,15 @@ case $state in
 	          '--executor-tier[Executor model tier]:tier:' \
           '--router-base-url[Router base URL]:url:' \
           '--router-api-key[Router API key]:key:'
+        ;;
+      version)
+        _arguments '--json[Emit JSON output]'
+        ;;
+      skill)
+        _values 'action' list show update
+        ;;
+      eval)
+        _values 'action' list run
         ;;
     esac
     ;;
@@ -499,6 +540,120 @@ function formatPlanListResult(plans: Array<{ id: string; version: number; status
   return lines.join('\n');
 }
 
+function formatEvalListResult(evals: Array<{ id: number; prompt: string; expectedOutput: string }>): string {
+  if (!evals.length) return 'No evals found.';
+  const lines = ['Evals:'];
+  for (const ev of evals) {
+    const truncatedPrompt = ev.prompt.length > 60 ? `${ev.prompt.slice(0, 57)}...` : ev.prompt;
+    lines.push(`  ${ev.id}: ${truncatedPrompt}`);
+  }
+  return lines.join('\n');
+}
+
+function formatEvalRunResult(results: Array<{ evalId: number; pass: boolean; summary: string }>): string {
+  if (!results.length) return 'No results.';
+  const lines = ['Eval Results:'];
+  for (const r of results) {
+    const badge = r.pass ? '✓ PASS' : '✗ FAIL';
+    lines.push(`  [${badge}] Eval ${r.evalId}: ${r.summary}`);
+  }
+  const passed = results.filter((r) => r.pass).length;
+  lines.push(`\n${passed}/${results.length} passed`);
+  return lines.join('\n');
+}
+
+async function handleSkillCommand(parsed: ParsedArguments): Promise<void> {
+  const sub = String(parsed.positionals[0] ?? '').toLowerCase();
+  if (sub === 'list') {
+    const skillsDir = fileURLToPath(new URL('../../skills', import.meta.url));
+    if (!existsSync(skillsDir)) {
+      outputResult([], parsed.options.json === true ? '[]' : 'No skills directory found.');
+      return;
+    }
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const entries = readdirSync(skillsDir);
+    const skills: Array<{ name: string; description: string; path: string }> = [];
+    for (const entry of entries) {
+      const skillDirPath = join(skillsDir, entry);
+      const skillFilePath = join(skillDirPath, 'SKILL.md');
+      if (!existsSync(skillFilePath)) continue;
+      const content = readFileSync(skillFilePath, 'utf8');
+      const nameMatch = content.match(/^name:\s*(.+)$/m);
+      const descMatch = content.match(/^description:\s*>\s*\n\s+(.+)$/m);
+      skills.push({
+        name: nameMatch?.[1]?.trim() ?? entry,
+        description: descMatch?.[1]?.trim() ?? '(no description)',
+        path: skillFilePath,
+      });
+    }
+    const text = skills.length === 0
+      ? 'No skills found.'
+      : skills.map((s) => `  ${s.name}: ${s.description}`).join('\n');
+    outputResult(skills, parsed.options.json === true ? JSON.stringify(skills, null, 2) : text);
+    return;
+  }
+
+  if (sub === 'show') {
+    const skillPath = typeof parsed.options.skillPath === 'string' ? parsed.options.skillPath.trim() : '';
+    if (!skillPath) {
+      throw createStructuredCliError(
+        '--skill-path is required for skill show.',
+        CLI_EXIT_CODES.usage,
+        'command:skill:show'
+      );
+    }
+    const { readFileSync } = await import('node:fs');
+    const resolvedPath = skillPath.startsWith('/') ? skillPath : fileURLToPath(new URL(`../../${skillPath}`, import.meta.url));
+    if (!existsSync(resolvedPath)) {
+      throw createStructuredCliError(
+        `Skill file not found: ${resolvedPath}`,
+        CLI_EXIT_CODES.config,
+        'command:skill:show'
+      );
+    }
+    const content = readFileSync(resolvedPath, 'utf8');
+    outputResult(content, parsed.options.json === true ? JSON.stringify({ path: resolvedPath, content }) : content);
+    return;
+  }
+
+  if (sub === 'update') {
+    const skillPath = typeof parsed.options.skillPath === 'string' ? parsed.options.skillPath.trim() : '';
+    if (!skillPath) {
+      throw createStructuredCliError(
+        '--skill-path is required for skill update.',
+        CLI_EXIT_CODES.usage,
+        'command:skill:update'
+      );
+    }
+    const resolvedPath = skillPath.startsWith('/') ? skillPath : fileURLToPath(new URL(`../../${skillPath}`, import.meta.url));
+    if (!existsSync(resolvedPath)) {
+      throw createStructuredCliError(
+        `Skill file not found: ${resolvedPath}`,
+        CLI_EXIT_CODES.config,
+        'command:skill:update'
+      );
+    }
+    if (typeof parsed.options.content === 'string') {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(resolvedPath, parsed.options.content, 'utf8');
+      outputResult(resolvedPath, `Skill updated: ${resolvedPath}`);
+      return;
+    }
+    const editor = process.env.EDITOR ?? process.env.VISUAL ?? 'vi';
+    const { spawnSync } = await import('node:child_process');
+    spawnSync(editor, [resolvedPath], { stdio: 'inherit' });
+    outputResult(resolvedPath, `Skill updated: ${resolvedPath}`);
+    return;
+  }
+
+  throw createStructuredCliError(
+    `Unknown skill sub-command: ${sub}. Use: list, show, update`,
+    CLI_EXIT_CODES.usage,
+    'command:skill'
+  );
+}
+
 async function main(): Promise<void> {
   let activeCommand: CommandName | undefined;
 
@@ -523,6 +678,16 @@ async function main(): Promise<void> {
       }
       const script = getCompletionScript(shell.trim());
       outputResult(script, script);
+      return;
+    }
+
+    if (parsed.command === 'version') {
+      outputResult(CLI_VERSION, `auto-browser v${CLI_VERSION}`);
+      return;
+    }
+
+    if (parsed.command === 'skill') {
+      await handleSkillCommand(parsed);
       return;
     }
 
@@ -760,6 +925,27 @@ async function main(): Promise<void> {
           `Unknown plan sub-command: ${sub}. Use: create, list, show, edit`,
           CLI_EXIT_CODES.usage,
           'command:plan'
+        );
+      }
+      case 'eval': {
+        const { EvalRunner } = await import('./eval-runner.js');
+        const runner = new EvalRunner(config);
+        const sub = String(parsed.positionals[0] ?? '').toLowerCase();
+        if (sub === 'list') {
+          const evals = await runner.list();
+          outputResult(evals, parsed.options.json === true ? JSON.stringify(evals, null, 2) : formatEvalListResult(evals));
+          return;
+        }
+        if (sub === 'run') {
+          const evalId = typeof parsed.options.evalId === 'string' ? parsed.options.evalId : undefined;
+          const results = await runner.run(evalId);
+          outputResult(results, parsed.options.json === true ? JSON.stringify(results, null, 2) : formatEvalRunResult(results));
+          return;
+        }
+        throw createStructuredCliError(
+          `Unknown eval sub-command: ${sub}. Use: list, run`,
+          CLI_EXIT_CODES.usage,
+          'command:eval'
         );
       }
       default:

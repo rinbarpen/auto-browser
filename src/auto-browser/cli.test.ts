@@ -753,4 +753,75 @@ describe('auto-browser CLI', () => {
       )
     ).toBe(true);
   });
+
+  it('prints version when --version is passed', () => {
+    expect(() => parseCliArgs(['--version'])).toThrow(/auto-browser v/);
+  });
+
+  it('accepts version as a command', () => {
+    const parsed = parseCliArgs(['version']);
+    expect(parsed.command).toBe('version');
+  });
+
+  it('prints version when --version is passed after a command token', () => {
+    expect(() => parseCliArgs(['skill', '--version'])).toThrow(/auto-browser v/);
+  });
+
+  it('prints version for --version flag with a non-version command', () => {
+    expect(() => parseCliArgs(['state', '--version'])).toThrow(/auto-browser v/);
+  });
+
+  it('accepts version and returns success exit code', () => {
+    try {
+      parseCliArgs(['--version']);
+      expect.fail('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(CliError);
+      expect((error as CliError).exitCode).toBe(CLI_EXIT_CODES.success);
+    }
+  });
+
+  it('includes version in the bash completion script', () => {
+    const script = getCompletionScript('bash');
+    expect(script).toContain('version');
+    expect(script).toContain('skill');
+    expect(script).toContain('eval');
+  });
+
+  it('includes version in the zsh completion script', () => {
+    const script = getCompletionScript('zsh');
+    expect(script).toContain('version');
+    expect(script).toContain('skill');
+    expect(script).toContain('eval');
+  });
+
+  it('parses skill as a valid command', () => {
+    const parsed = parseCliArgs(['skill', 'list']);
+    expect(parsed.command).toBe('skill');
+    expect(parsed.positionals).toEqual(['list']);
+  });
+
+  it('parses eval as a valid command', () => {
+    const parsed = parseCliArgs(['eval', 'list']);
+    expect(parsed.command).toBe('eval');
+    expect(parsed.positionals).toEqual(['list']);
+  });
+
+  it('parses eval run with --eval-id', () => {
+    const parsed = parseCliArgs(['eval', 'run', '--eval-id', '1']);
+    expect(parsed.command).toBe('eval');
+    expect(parsed.options.evalId).toBe('1');
+  });
+
+  it('parses skill with any positional as valid command', () => {
+    const parsed = parseCliArgs(['skill', 'unknown']);
+    expect(parsed.command).toBe('skill');
+    expect(parsed.positionals).toEqual(['unknown']);
+  });
+
+  it('parses eval with any positional as valid command', () => {
+    const parsed = parseCliArgs(['eval', 'unknown']);
+    expect(parsed.command).toBe('eval');
+    expect(parsed.positionals).toEqual(['unknown']);
+  });
 });

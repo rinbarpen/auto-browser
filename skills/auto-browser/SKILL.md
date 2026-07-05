@@ -45,7 +45,12 @@ auto-browser approve --task-id <task-id> --executor-model deepseek-v4-flash
 | `approve` | Approve a drafted task → executes with executor model |
 | `handoff` | Enter handoff mode for human intervention |
 | `resume` | Replan and resume a handed-off task |
+| `version` | Show CLI version |
 | `completion` | Print shell completion script (bash/zsh) |
+| `goal` | Manage goals (create, list, show, archive) |
+| `plan` | Manage plans (create, list, show, edit) |
+| `skill` | Manage project skills (list, show, update) |
+| `eval` | Run eval tests (list, run) |
 
 ### Common Options
 
@@ -57,6 +62,7 @@ auto-browser approve --task-id <task-id> --executor-model deepseek-v4-flash
 | `--model-tier <tier>` | Preset: `standard`, `premium`, `economy` |
 | `--router-base-url <url>` | LLM router URL (default: http://127.0.0.1:18000) |
 | `--router-api-key <key>` | LLM router API key |
+| `--version` | Show CLI version and exit |
 | `--json` | Output as JSON |
 | `--goal "<text>"` | Task goal (also accepts positional arg) |
 | `--context "<text>"` | Extra context for the LLM |
@@ -87,6 +93,7 @@ Override individual models via `--planner-model` / `--executor-model` or env var
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
+| 1 | Internal error |
 | 2 | Usage error |
 | 3 | Configuration error (missing/invalid model) |
 | 4 | Control service startup failure |
@@ -98,6 +105,50 @@ Override individual models via `--planner-model` / `--executor-model` or env var
 auto-browser completion bash > ~/.local/share/bash-completion/completions/auto-browser
 auto-browser completion zsh > ~/.zfunc/_auto-browser
 ```
+
+### Version
+
+```bash
+auto-browser version         # Show CLI version
+auto-browser --version       # Same, via flag
+```
+
+Output: `auto-browser v0.1.0`
+
+### Skill Management
+
+```bash
+# List all available project skills
+auto-browser skill list
+
+# Show the contents of a skill file
+auto-browser skill show --skill-path skills/auto-browser/SKILL.md
+
+# Update a skill (opens $EDITOR, or use --content)
+auto-browser skill update --skill-path skills/auto-browser/SKILL.md
+auto-browser skill update --skill-path skills/auto-browser/SKILL.md --content "# New content..."
+```
+
+Scans the project `skills/` directory for `SKILL.md` files, reads frontmatter for name/description.
+
+### Eval Testing
+
+```bash
+# List available eval tests
+auto-browser eval list
+
+# Run all eval tests against the configured LLM router
+auto-browser eval run
+
+# Run a specific eval by ID
+auto-browser eval run --eval-id 1
+
+# JSON output
+auto-browser eval list --json
+auto-browser eval run --json
+```
+
+Reads test definitions from `skills/auto-browser/evals/evals.json`, sends prompts to the LLM router, and evaluates responses against expected output criteria using an automated judge.
 
 ## Architecture
 
